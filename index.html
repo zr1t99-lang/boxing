@@ -230,22 +230,22 @@ var CFG = {
     jumpSW: 1.0, lossMs: 250, warmMs: 300      // a single-frame jump larger than this is a tracking glitch; after any loss no punch is accepted for 250 ms
   },
   raiseAbove: 0.35,     // wrist above shoulder line by this much = hand raised
-  dodge: { on: 0.065, offRatio: 0.5, frames: 2, refractMs: 120, dead: 0.02, full: 0.16 },   // lean in SW: dodge flag, release ratio (hysteresis), avatar dead zone and full-lean distance
+  dodge: { on: 0.13, offRatio: 0.55, frames: 3, refractMs: 160, dead: 0.04, full: 0.24, head: 0.8, torso: 1.0 },   // lean in SW: dodge activates at 13% of shoulder width and releases at 7% (hysteresis); avatar dead zone and full-lean distance; weights of head-vs-shoulder-centre and torso shift in the lean
   filter: 1,
   block: { frames: 3, maxElbow: 120, nearHead: 1.3, belowNose: 0.15 },
   pos: { max: 170, duckFull: 0.5 }   // max avatar sideways travel (px); head drop (SW) for a full duck
 };
 
 /* User-tunable settings (saved on this device). dodge and punch are sensitivity multipliers: 1 = default, higher = more sensitive. */
-var SETTINGS = { dodge: 1, punch: 1, anim: true, dev: false };
+var SETTINGS = { dodge: 1, punch: 1, dead: 1, anim: true, dev: false };
 (function () {
   try {
-    var o = JSON.parse(localStorage.getItem('mb.settings') || 'null');
-    if (o) { if (typeof o.dodge === 'number') SETTINGS.dodge = clamp(o.dodge, 0.4, 2.5); if (typeof o.punch === 'number') SETTINGS.punch = clamp(o.punch, 0.4, 2.5); if (typeof o.anim === 'boolean') SETTINGS.anim = o.anim; }
+    var o = JSON.parse(localStorage.getItem('mb.settings2') || 'null');
+    if (o) { if (typeof o.dodge === 'number') SETTINGS.dodge = clamp(o.dodge, 0.4, 2.5); if (typeof o.punch === 'number') SETTINGS.punch = clamp(o.punch, 0.4, 2.5); if (typeof o.dead === 'number') SETTINGS.dead = clamp(o.dead, 0.4, 2.5); if (typeof o.anim === 'boolean') SETTINGS.anim = o.anim; }
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-function saveSettings() { try { localStorage.setItem('mb.settings', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, anim: SETTINGS.anim })); } catch (e) {} }
+function saveSettings() { try { localStorage.setItem('mb.settings2', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim })); } catch (e) {} }
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -291,7 +291,7 @@ function GestureEngine() {
     rRaised: false, lRaised: false, motion: 1, angR: 0, angL: 0, duck: 0, roll: 0,
     visRS: false, visLS: false, visRW: false, visLW: false, visNose: false,
     pcR: 0, pcL: 0, vR: 0, vL: 0, stR: 'GUARD', stL: 'GUARD', act: 'GUARD',
-    last: '', lastAt: 0, punchCount: 0, lastPunchAt: -1e9, lastPunchSide: '', lastType: '', phys: 0, dupPrev: 0
+    last: '', lastAt: 0, punchCount: 0, dodgeCount: 0, lastPunchAt: -1e9, lastPunchSide: '', lastType: '', phys: 0, dupPrev: 0
   };
   this.baseNoseX = null; this.baseNoseY = null; this.baseMidX = null; this.baseHeadRel = 0; this.baseRoll = 0; this.leanNoise = 0;
   this.punches = []; this.dupPrev = 0;
@@ -364,6 +364,7 @@ GestureEngine.prototype._arm = function (s, L, sw, t) {
   hist.push({ t: t, rx: rx, ry: ry, ang: ang, reach: reach, zr: zr, hs: hs, v: v });
   while (hist.length && t - hist[0].t > 500) hist.shift();
   a.v = v;
+  if (v > 0.8 && Math.abs(vUp) > 0.75 * v) a.vertT = t;           // mostly vertical motion (raising or lowering the guard)
 
   var velC = clamp((v - P.vMin / sens) / (P.vSpan / sens), 0, 1);
   var extC = clamp(er / (P.extRate / sens), 0, 1);
@@ -383,10 +384,11 @@ GestureEngine.prototype._arm = function (s, L, sw, t) {
   if ((a.st === 'GUARD' || a.st === 'READY') && a.onC >= P.onFrames && !this.block && t >= a.hold && hist.length >= 3) {
     a.st = 'WINDUP';
     var s0 = b || hist[0];
-    W = a.win = { t0: s0.t, rx0: s0.rx, ry0: s0.ry, reach0: s0.reach, minRx: Math.min(s0.rx, rx), maxRx: Math.max(s0.rx, rx), highRy: Math.min(s0.ry, ry), lowRy: Math.max(s0.ry, ry), peakV: v, peakVUp: vUp, maxFwd: fwd, peakScore: score, maxZS: Math.max(zC, scC), seen: 0 };
+    W = a.win = { t0: s0.t, rx0: s0.rx, ry0: s0.ry, reach0: s0.reach, minRx: Math.min(s0.rx, rx), maxRx: Math.max(s0.rx, rx), highRy: Math.min(s0.ry, ry), lowRy: Math.max(s0.ry, ry), peakV: v, peakVUp: vUp, maxFwd: fwd, peakScore: score, maxZS: Math.max(zC, scC), maxEZ: Math.max(extC, zC), seen: 0 };
   }
   if (a.st === 'WINDUP') {
     if (v > W.peakV) W.peakV = v; if (vUp > W.peakVUp) W.peakVUp = vUp; if (fwd > W.maxFwd) W.maxFwd = fwd; if (score > W.peakScore) W.peakScore = score;
+    if (Math.max(extC, zC) > W.maxEZ) W.maxEZ = Math.max(extC, zC);
     if (zC > W.maxZS) W.maxZS = zC; if (scC > W.maxZS) W.maxZS = scC;
     if (rx < W.minRx) W.minRx = rx; if (rx > W.maxRx) W.maxRx = rx; if (ry < W.highRy) W.highRy = ry; if (ry > W.lowRy) W.lowRy = ry;
     if (!W.seen && score >= P.fire && fwd >= P.fwdMin) W.seen = t;
@@ -395,7 +397,7 @@ GestureEngine.prototype._arm = function (s, L, sw, t) {
     var oth = this.arms[s === 'R' ? 'L' : 'R'], bothRise = oth.st === 'WINDUP' && oth.win && (oth.win.lowRy - oth.rel.y) > 0.4;      // both hands rising together is a block or a raise, not an uppercut
     if (rise >= Up.rise && rise >= Up.ratio * dxR && W.lowRy >= Up.fromY && ry >= Up.toY && !bothRise && W.peakVUp >= Up.vUp / sens && W.maxFwd < Up.fwdMax && rg > -0.3) decided = 'upper';
     else if (dxR >= Hk.dx && dxR >= Hk.ratio * dyR && W.maxFwd < Hk.fwdMax && W.peakV >= Hk.v / sens && rg > -0.3) decided = 'hook';
-    else if (W.seen && !(dyR > 0.45 && dyR > 1.5 * dxR && W.maxZS < 0.3) && (t - W.seen >= P.fwdSettleMs || v < 0.8 * W.peakV)) decided = (W.peakV >= P.cross.v / sens && (reach >= P.cross.reach || ang >= P.cross.ang)) ? 'cross' : 'jab';
+    else if (W.seen && rg > -0.12 && !((a.vertT != null && t - a.vertT < 300 || dyR > 0.45 && dyR > 1.5 * dxR) && W.maxEZ < 0.3) && (t - W.seen >= P.fwdSettleMs || v < 0.8 * W.peakV)) decided = (W.peakV >= P.cross.v / sens && (reach >= P.cross.reach || ang >= P.cross.ang)) ? 'cross' : 'jab';
     if (decided) {
       a.st = 'STRIKE'; a.type = decided; a.tFire = t; a.lastPunch = t; a.peakV = W.peakV; a.peakReach = reach; a.peakDist = Math.hypot(rx - W.rx0, ry - W.ry0); a.dupFlag = false;
       typ = decided;
@@ -466,7 +468,8 @@ GestureEngine.prototype.update = function (raw, vw, vh, t) {
   var midX = (RS.X + LS.X) / 2;
   if (this.baseNoseX == null) { this.baseNoseX = nose.X; this.baseNoseY = nose.Y; this.baseMidX = midX; this.baseHeadRel = (nose.X - midX) / sw; }
   var headDx = (nose.X - this.baseNoseX) / sw, shDx = (midX - this.baseMidX) / sw;
-  var ld = headDx + 0.35 * shDx;          // head leads; the shoulders add to it when the whole upper body leans
+  var headRel = (nose.X - midX) / sw - this.baseHeadRel;           // head relative to the shoulder centre
+  var ld = CFG.dodge.head * headRel + CFG.dodge.torso * shDx;          // lean = head over the shoulder centre plus the torso shift
   f.lean = ld; f.leanPct = ld * 100; f.shPct = shDx * 100;
   f.head = clamp((nose.X - midX) / sw - this.baseHeadRel, -0.6, 0.6);
   var dyn = (nose.Y - this.baseNoseY) / sw;
@@ -478,21 +481,21 @@ GestureEngine.prototype.update = function (raw, vw, vh, t) {
   this.steadyT = mv < 0.03 ? this.steadyT + dt : 0;
   if (this.dodge === null) {
     var rate = Math.abs(ld) < 0.02 ? 0.01 : (this.steadyT > 2 && Math.abs(ld) < 0.2 ? 0.03 : 0);
-    if (rate) { this.baseNoseX += (nose.X - this.baseNoseX) * rate; this.baseMidX += (midX - this.baseMidX) * rate; }
+    if (rate) { this.baseNoseX += (nose.X - this.baseNoseX) * rate; this.baseMidX += (midX - this.baseMidX) * rate; this.baseHeadRel += ((nose.X - midX) / sw - this.baseHeadRel) * rate; }
     var rY = Math.abs(dyn) < 0.05 ? 0.01 : (this.steadyT > 2 && Math.abs(dyn) < 0.3 ? 0.03 : 0);
     if (rY) this.baseNoseY += (nose.Y - this.baseNoseY) * rY;
   }
 
   // ---- dodge flag with hysteresis (statistics, tutorial and debug; the avatar itself follows the continuous lean) ----
-  var DD = CFG.dodge, onT = Math.max(DD.on / SETTINGS.dodge, this.leanNoise * 3), offT = onT * DD.offRatio;
+  var DD = CFG.dodge, onT = Math.max(DD.on / SETTINGS.dodge, this.leanNoise * 4), offT = onT * DD.offRatio;
   f.thr = onT * 100;
   if (this.dodge === null) {
     if (t - this.dodgeRel < DD.refractMs) { this.cR = 0; this.cL = 0; }
     else {
       this.cR = ld > onT ? this.cR + 1 : 0;
       this.cL = ld < -onT ? this.cL + 1 : 0;
-      if (this.cR >= DD.frames) { this.dodge = 'R'; this._note('LEAN RIGHT', t, 'dodge'); }
-      else if (this.cL >= DD.frames) { this.dodge = 'L'; this._note('LEAN LEFT', t, 'dodge'); }
+      if (this.cR >= DD.frames) { this.dodge = 'R'; f.dodgeCount++; this._note('LEAN RIGHT', t, 'dodge'); }
+      else if (this.cL >= DD.frames) { this.dodge = 'L'; f.dodgeCount++; this._note('LEAN LEFT', t, 'dodge'); }
     }
   } else {
     var gone = this.dodge === 'R' ? ld < offT : ld > -offT;
@@ -564,7 +567,7 @@ Tracker.prototype.snapshot = function () { var o = {}, s = this.state; for (var 
 Tracker.prototype.setOverlay = function (cv) { this.overlay = cv; };
 Tracker.prototype.captureBaseline = function () { this.engine.captureBaseline(); };
 Tracker.prototype.drainPunches = function () { return this.engine.drainPunches(); };
-Tracker.prototype.getDebug = function () { var f = this.engine.feat; return { last: f.last || '-', lastType: f.lastType, stL: f.stL, stR: f.stR, conf: Math.max(f.pcL || 0, f.pcR || 0), fps: this.state.fps || 0, phys: f.phys, dup: f.dupPrev }; };
+Tracker.prototype.getDebug = function () { var f = this.engine.feat; return { last: f.last || '-', lastType: f.lastType, stL: f.stL, stR: f.stR, conf: Math.max(f.pcL || 0, f.pcR || 0), fps: this.state.fps || 0, phys: f.phys, dup: f.dupPrev, punches: f.punchCount, dodges: f.dodgeCount }; };
 Tracker.prototype.getDodge = function () { return this.engine.feat.dodge; };
 Tracker.prototype.isBlocking = function () { return this.engine.feat.block; };
 /* Continuous upper-body pose for the avatar. Arm values are in shoulder-widths, relative to the same-side shoulder;
@@ -573,15 +576,15 @@ Tracker.prototype.getUpper = function () {
   var e = this.engine, f = e.feat, P = CFG.pos, D = CFG.dodge, sens = SETTINGS.dodge;
   var tracking = f.visRS && f.visLS;
   // Continuous lean: a small head/shoulder offset already moves the avatar noticeably (ease-out curve), and it saturates at a modest lean.
-  var l = f.lean, al = Math.abs(l), dead = Math.min(0.06, Math.max(D.dead, e.leanNoise * 2.5)), full = D.full / sens;
+  var l = f.lean, al = Math.abs(l), dead = Math.min(0.08, Math.max(D.dead * SETTINGS.dead, e.leanNoise * 2.5)), full = D.full / sens;
   var u = clamp((al - dead) / Math.max(0.02, full - dead), 0, 1);
-  var x = (l < 0 ? -1 : 1) * P.max * (1 - Math.pow(1 - u, 1.6));
+  var x = (l < 0 ? -1 : 1) * P.max * Math.pow(u, 1.1);      // dead zone, then proportional: the avatar leans as much as you do (visual only, no gameplay action)
   var arm = function (a, sg) { return tracking && a.vis ? { out: a.rel.x * sg, up: a.rel.y, eout: a.erel.x * sg, eup: a.erel.y, ext: a.ext, wrx: a.rel.x, wry: a.rel.y, erx: a.erel.x, ery: a.erel.y } : null; };
   return {
     x: tracking ? x : 0,
     duck: tracking && f.duck >= 0.06 ? f.duck : 0,
     roll: tracking ? f.roll : 0,
-    head: tracking ? f.head : 0,
+    head: tracking ? f.head : 0, dodge: tracking ? f.dodge : null,
     R: arm(e.arms.R, 1), L: arm(e.arms.L, -1),
     vis: { ls: f.visLS, rs: f.visRS, lw: f.visLW, rw: f.visRW, shoulders: f.visLS && f.visRS, all: f.visLS && f.visRS && f.visLW && f.visRW }
   };
@@ -772,7 +775,7 @@ DebugInput.prototype.isBlocking = function () { return !!(this.keys[' '] || this
 DebugInput.prototype.getDebug = function () { return { last: 'KEYBOARD', stL: '-', stR: '-', conf: 1, fps: 0, phys: this.phys, dup: 0 }; };
 DebugInput.prototype.getUpper = function () {
   var k = this.keys;
-  return { x: (k.ArrowLeft || k.a) ? -150 : (k.ArrowRight || k.d) ? 150 : 0, duck: (k.ArrowDown || k.s) ? 1 : 0, roll: 0, head: 0, R: null, L: null, vis: null };
+  return { dodge: (k.ArrowLeft || k.a) ? 'L' : (k.ArrowRight || k.d) ? 'R' : null, x: (k.ArrowLeft || k.a) ? -150 : (k.ArrowRight || k.d) ? 150 : 0, duck: (k.ArrowDown || k.s) ? 1 : 0, roll: 0, head: 0, R: null, L: null, vis: null };
 };
 
 /* ======================================================================
@@ -1242,7 +1245,7 @@ function createGame(mode) {
     hits: 0, swings: 0, dodges: 0, blocks: 0, taken: 0, exec: 0, phys: 0, rejected: 0, moves: { jab: 0, cross: 0, hook: 0, upper: 0 }, lastMove: '', lastMoveT: -9,
     shake: 0, flash: 0, hitstop: 0, particles: [], popups: [],
     vis: null, lostT: 0, paused: false, dbg: null,
-    p: { punch: null, q: [], x: 0, duck: 0, roll: 0, head: 0, anim: null, leanZ: 0, wasBlock: false, block: 0, blocking: false, hurt: 0, happy: 0,
+    p: { punch: null, q: [], x: 0, gx: 0, duck: 0, roll: 0, head: 0, anim: null, leanZ: 0, wasBlock: false, block: 0, blocking: false, hurt: 0, happy: 0,
          arm: { R: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0, wrx: 0.08, wry: -0.18, erx: 0.18, ery: 0.62 }, L: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0, wrx: -0.08, wry: -0.18, erx: -0.18, ery: 0.62 } },
          tracked: { R: false, L: false }, armW: { R: 0, L: 0 } },
     a: { state: 'idle', stateT: 0, timer: 2.2, side: 'right', hurt: 0, hurtDir: 1, hurtId: 0, happy: 0, guardCool: 0, reactCool: 0, struck: false, counter: false, slipDir: 1, slipDuck: 0,
@@ -1273,7 +1276,7 @@ var ATK = {
   body:     { type: 'body',     label: 'SIDESTEP!',        hw: 55,  y0: 560, y1: 730 }    // low, ducking does not help
 };
 var BODY_HW = 55;
-function playerBox(p) { return { x0: 240 + p.x - BODY_HW, x1: 240 + p.x + BODY_HW, y0: 460 + p.duck * 105, y1: 760 }; }
+function playerBox(p) { return { x0: 240 + p.gx - BODY_HW, x1: 240 + p.gx + BODY_HW, y0: 460 + p.duck * 105, y1: 760 }; }
 function zoneHits(z, b) { return !(b.x1 < z.zx - z.hw || b.x0 > z.zx + z.hw || b.y1 < z.y0 || b.y0 > z.y1); }
 
 
@@ -1334,8 +1337,8 @@ function updateAI(G, dt, fx) {
           var pty = k === 'straight' ? (Math.random() < 0.65 ? 'jab' : 'cross') : k === 'hook' ? 'hook' : 'upper';
           if (G.aSt < PUNCH[pty].st) { a.timer = 0.35; break; }                       // too tired: it waits and breathes
           spend(G, 'a', PUNCH[pty].st);
-          a.atk = { type: ATK[k].type, ptype: pty, label: ATK[k].label, hw: ATK[k].hw, y0: ATK[k].y0, y1: ATK[k].y1, zx: 240 + G.p.x };
-          a.trackX = G.p.x; a.side = Math.random() < 0.5 ? 'left' : 'right';
+          a.atk = { type: ATK[k].type, ptype: pty, label: ATK[k].label, hw: ATK[k].hw, y0: ATK[k].y0, y1: ATK[k].y1, zx: 240 + G.p.gx };
+          a.trackX = G.p.gx; a.side = Math.random() < 0.5 ? 'left' : 'right';
           setA(G, 'windup', a.counter ? 0.7 : 0.95); a.counter = false; fx.warn();
         }
       }
@@ -1344,7 +1347,7 @@ function updateAI(G, dt, fx) {
     case 'slip': if (a.stateT >= a.timer) { a.counter = !train; setA(G, 'idle', train ? rand(0.4, 0.9) : 0.2); } break;      // a successful slip is answered by a counter-punch in a real match
     case 'windup':
       if (!a.locked) {                                   // the zone follows you, then locks in
-        a.trackX += (G.p.x - a.trackX) * Math.min(1, dt * 6); a.atk.zx = 240 + a.trackX;
+        a.trackX += (G.p.gx - a.trackX) * Math.min(1, dt * 6); a.atk.zx = 240 + a.trackX;
         if (a.stateT >= a.timer * 0.53) { a.locked = true; fx.tick(); }
       }
       if (a.stateT >= a.timer) setA(G, 'strike', 0.2);
@@ -1375,14 +1378,18 @@ function stepGame(G, dt, input, fx) {
   var k14 = Math.min(1, dt * 14), k20 = Math.min(1, dt * 20);
   var dx = (ub.x - p.x) * (1 - Math.exp(-dt * 20)), lim = 1500 * dt;       // smooth, never teleports: eased and speed-limited
   p.x += clamp(dx, -lim, lim);
+  // Gameplay dodge position is separate from the visual lean: the avatar always follows you, but you only leave the attack zone while a deliberate dodge (hysteresis flag) is active.
+  var dsign = ub.dodge === 'R' ? 1 : ub.dodge === 'L' ? -1 : (ub.dodge === undefined && Math.abs(ub.x) >= 100 ? (ub.x > 0 ? 1 : -1) : 0);
+  var gtarget = dsign ? dsign * clamp(Math.max(Math.abs(p.x), 130), 130, 170) : 0;
+  p.gx += (gtarget - p.gx) * (1 - Math.exp(-dt * 9));
   p.duck += (ub.duck - p.duck) * k14; p.roll += (ub.roll - p.roll) * k14; p.head += ((ub.head || 0) - p.head) * k14;
   if (!G.mixer) { G.mixer = new AnimMixer(); G.mixer.play('idle'); }
   var live = G.phase === 'fight' && !G.paused;
-  if (p.leanZ === 0 && Math.abs(p.x) > 45) {
-    p.leanZ = p.x > 0 ? 1 : -1; G.mixer.play(p.leanZ > 0 ? 'dodgeR' : 'dodgeL');
-    if (live) { spend(G, 'p', STAM.dodge); if (train) addPopup(G, 'DODGE', 240 + p.x, 430, '#3be8ff', 32); }       // a dodge costs stamina
+  if (p.leanZ === 0 && Math.abs(p.gx) > 45) {
+    p.leanZ = p.gx > 0 ? 1 : -1; G.mixer.play(p.leanZ > 0 ? 'dodgeR' : 'dodgeL');
+    if (live) { spend(G, 'p', STAM.dodge); if (train) addPopup(G, 'DODGE', 240 + p.gx, 430, '#3be8ff', 32); }       // a dodge costs stamina
   }
-  else if (p.leanZ !== 0 && Math.abs(p.x) < 18) p.leanZ = 0;
+  else if (p.leanZ !== 0 && Math.abs(p.gx) < 18) p.leanZ = 0;
   if (blocking && !p.wasBlock) { G.mixer.play('block'); if (live && train) addPopup(G, 'BLOCK', 240 + p.x, 420, '#a4acdc', 30); }
   p.wasBlock = blocking;
   p.anim = G.mixer.update(dt);
@@ -2191,9 +2198,12 @@ function DevPanel(props) {
     row('Punch confidence R', Math.round((snap.pcR || 0) * 100) + '%  ' + (snap.stR || ''), bar(snap.pcR, 1, 'p')),
     row('Wrist velocity L / R', (snap.vL || 0).toFixed(1) + ' / ' + (snap.vR || 0).toFixed(1) + ' SW/s'),
     row('Last cues R', A.R.cues || '-'), row('Last cues L', A.L.cues || '-'),
+    row('Detected punches / dodges', (snap.punchCount || 0) + ' / ' + (snap.dodgeCount || 0)),
+    row('Dodge state', snap.dodge ? 'DODGE ' + snap.dodge : 'neutral'),
     row('Tracking FPS', snap.fps || 0),
     slider('Dodge sensitivity', 'dodge', 'higher = a smaller lean registers and moves the boxer more'),
     slider('Punch sensitivity', 'punch', 'higher = slower / shorter jabs count'),
+    slider('Neutral dead zone', 'dead', 'higher = more small, involuntary movement is ignored by the avatar'),
     h('div', { className: 'row' },
       h('button', { className: 'btn ghost grow', onClick: function () { props.tracker.captureBaseline(); } }, 'RE-CENTRE NEUTRAL'),
       h('button', { className: 'btn ghost grow', onClick: function () { set('anim', !SETTINGS.anim); }, 'aria-pressed': SETTINGS.anim }, SETTINGS.anim ? 'ANIM BLEND ON' : 'ANIM BLEND OFF')));
