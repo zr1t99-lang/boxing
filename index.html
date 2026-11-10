@@ -1318,6 +1318,7 @@ function aiStrikeLands(G, fx) {
 /* The opponent reacts to the player's punches: it can block or slip them, and in a real match it counter-attacks afterwards. */
 function aiReact(G, fx) {
   var a = G.a, train = G.mode === 'training';
+  if (train) return;                                   // training: the opponent never blocks or slips, every punch lands
   if (a.reactCool > 0 || !(a.state === 'idle' || a.state === 'recover')) return;
   var r = Math.random(), pb = train ? 0.15 : 0.24, pd = train ? 0.11 : 0.17;
   if (r < pb && G.aSt > 0) { setA(G, 'guard', 0.55); a.reactCool = train ? 1.4 : 0.8; }
@@ -1330,7 +1331,7 @@ function updateAI(G, dt, fx) {
       a.timer -= dt;
       if (a.timer <= 0) {
         if (train) {                                     // training: the opponent never attacks, it only shows defensive habits
-          if (Math.random() < 0.3 && a.guardCool <= 0) { setA(G, 'guard', 0.9); a.guardCool = 4; } else a.timer = rand(1.2, 2.4);
+          a.timer = rand(1.2, 2.4);                       // no guard habit in training
         } else if (Math.random() < 0.2 && a.guardCool <= 0 && !a.counter) setA(G, 'guard', 0.9);
         else {
           var r = Math.random(), k = r < 0.4 ? 'straight' : r < 0.7 ? 'hook' : 'body';
@@ -2008,7 +2009,7 @@ function StartScreen(props) {
       ? h('button', { className: 'btn gold', disabled: true }, 'LOADING KHALID…')
       : h('div', { className: 'modes' },
           h('button', { className: 'btn gold big', 'data-hand': '1', onClick: function () { props.onStart('game'); } }, h('span', null, 'START GAME'), h('small', null, 'Real match: health, stamina, K.O.')),
-          h('button', { className: 'btn big', 'data-hand': '1', onClick: function () { props.onStart('training'); } }, h('span', null, 'TRAINING'), h('small', null, 'Never attacked, never ends'))),
+          h('button', { className: 'btn big', 'data-hand': '1', onClick: function () { props.onStart('training'); } }, h('span', null, 'TRAINING'), h('small', null, 'Punching bag: no blocks, no dodges'))),
     props.camOn ? h('button', { className: 'btn ghost', onClick: props.onCamOff }, 'TURN CAMERA OFF') : null,
     h('details', { className: 'dev' },
       h('summary', null, 'Developer notes and limits'),
