@@ -130,6 +130,16 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .stat.big { grid-column: 1 / -1; text-align: center; }
 .stat.big b { font-size: 38px; color: var(--gold); }
 
+.devpanel { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px dashed var(--gold); border-radius: 12px; background: rgba(8, 6, 36, 0.8); font-size: 12px; }
+.drow { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; }
+.drow span { color: var(--mute); }
+.drow b { font-variant-numeric: tabular-nums; text-align: right; }
+.dbar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.dbar i { display: block; height: 100%; background: var(--cyan); }
+.dbar.p i { background: var(--gold); }
+.dsl { display: flex; flex-direction: column; gap: 2px; }
+.dsl small { color: var(--mute); font-size: 11px; }
+.dsl input { width: 100%; }
 .vps { display: flex; gap: 6px; flex-wrap: wrap; }
 .vp { display: inline-flex; align-items: center; font: 700 11px/1 var(--body); letter-spacing: 0.04em; padding: 6px 9px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); white-space: nowrap; }
 .vp::before { content: ""; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--red); }
@@ -174,21 +184,35 @@ var CFG = {
   closeFrac: 0.60,      // shoulder width / frame width above this = "Move Back" (phone held close is fine)
   farFrac: 0.14,        // below this = "Move Closer"
   stillMax: 0.30,       // head movement (SW) allowed while calibrating
-  punch: {
-    windowMs: 280,      // look-back window for a punch
-    cooldown: 380,      // ms between punches from the same arm
-    rearmAng: 125,      // elbow must bend below this before the arm can punch again
-    extAng: 140,        // elbow angle that counts as extended
-    riseAng: 38,        // elbow straightening inside the window
-    reachRise: 0.55,    // wrist-to-shoulder growth inside the window (SW)
-    minSpeed: 2.0,      // wrist speed (SW per second) for the reach cue
-    zRise: 0.38         // wrist moving toward the camera (MediaPipe z, SW); weak cue, noisy
+  punch: {              // natural-punch state machine: every cue is a rate in shoulder widths (SW) or degrees per second
+    vMin: 0.8, vSpan: 1.6,        // wrist speed relative to the shoulder (SW/s): 0 below vMin, full at vMin+vSpan
+    extRate: 450,                 // elbow straightening rate (deg/s) that counts as a full extension cue
+    accSpan: 2.0,                 // speed gained over ~100 ms (SW/s) for a full acceleration cue
+    reachRate: 1.6,               // wrist-to-shoulder distance growth (SW/s)
+    zRate: 1.3,                   // wrist toward the camera (MediaPipe z, SW/s); weak, noisy
+    scaleRate: 0.9,               // hand growing in the image (wrist-to-fingers length, SW/s); the best single-camera depth cue
+    fwdMin: 0.25,                 // at least one forward cue (extension, reach, z or hand growth) is required, so speed alone is not a punch
+    start: 0.32, fire: 0.5,       // confidence needed to leave GUARD and to register the punch
+    startMs: 220, extMs: 380,     // longest PUNCH START and EXTENSION phases
+    cdBase: 80, cdMin: 110, cdMax: 260, recMaxMs: 450   // adaptive recovery: ~0.6 x extension time + 80 ms, 450 ms at most without a retraction
   },
   raiseAbove: 0.35,     // wrist above shoulder line by this much = hand raised
-  lean: { on: 0.55, off: 0.32, frames: 3, adapt: 0.02 },
+  dodge: { on: 0.065, offRatio: 0.5, frames: 2, refractMs: 120, dead: 0.02, full: 0.16 },   // lean in SW: dodge flag, release ratio (hysteresis), avatar dead zone and full-lean distance
+  filter: 1,
   block: { frames: 3, maxElbow: 120, nearHead: 1.3, belowNose: 0.15 },
-  pos: { scale: 180, dead: 0.08, max: 170, duckFull: 0.7 }   // head offset (SW) -> on-screen movement; head drop (SW) for a full duck
+  pos: { max: 170, duckFull: 0.5 }   // max avatar sideways travel (px); head drop (SW) for a full duck
 };
+
+/* User-tunable settings (saved on this device). dodge and punch are sensitivity multipliers: 1 = default, higher = more sensitive. */
+var SETTINGS = { dodge: 1, punch: 1, anim: true, dev: false };
+(function () {
+  try {
+    var o = JSON.parse(localStorage.getItem('mb.settings') || 'null');
+    if (o) { if (typeof o.dodge === 'number') SETTINGS.dodge = clamp(o.dodge, 0.4, 2.5); if (typeof o.punch === 'number') SETTINGS.punch = clamp(o.punch, 0.4, 2.5); if (typeof o.anim === 'boolean') SETTINGS.anim = o.anim; }
+  } catch (e) {}
+  try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
+})();
+function saveSettings() { try { localStorage.setItem('mb.settings', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, anim: SETTINGS.anim })); } catch (e) {} }
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -211,62 +235,148 @@ function mkErr(code, message, cause) { var e = new Error(message); e.code = code
    right shoulder (it appears on the image's left in an un-mirrored frame),
    so mapping by index keeps left/right anatomically correct.
    ====================================================================== */
-function newArm() { return { hist: [], armed: false, lastPunch: -1e9, ang: 0, reach: 0, raised: 0, vis: false, rel: { x: 0, y: -0.5 }, erel: { x: 0.1, y: 0.55 }, ext: 0 }; }
+/* One Euro filter: heavy smoothing while a joint is nearly still (no jitter), almost none while it moves fast (no lag). */
+function OneEuro(minC, beta) { this.minC = minC; this.beta = beta; this.x = null; this.dx = 0; }
+OneEuro.prototype.f = function (v, dt) {
+  if (this.x === null) { this.x = v; this.dx = 0; return v; }
+  this.dx += ((v - this.x) / dt - this.dx) / (1 + 1 / (6.2832 * 5 * dt));              // derivative low-pass at 5 Hz
+  var fc = this.minC + this.beta * Math.abs(this.dx);
+  this.x += (v - this.x) / (1 + 1 / (6.2832 * fc * dt));
+  return this.x;
+};
+/* [landmark, minCutoff Hz, beta]. Only the head, shoulders, arms and hands. Values are filtered in frame-width units. */
+var JOINTS = [[0, 1.5, 12], [11, 1.5, 8], [12, 1.5, 8], [13, 2, 10], [14, 2, 10], [15, 2.5, 16], [16, 2.5, 16], [17, 2.5, 16], [18, 2.5, 16], [19, 2.5, 16], [20, 2.5, 16]];
+
+function newArm() {
+  return { hist: [], st: 'GUARD', conf: 0, v: 0, ang: 0, reach: 0, raised: 0, vis: false, rel: { x: 0, y: -0.5 }, erel: { x: 0.1, y: 0.55 }, ext: 0,
+           sT: 0, peak: 0, exT: 0, peakV: 0, peakReach: 0, fireAng: 0, recT: 0, cd: 0, retr: false, lastPunch: -1e9, cues: '' };
+}
 
 function GestureEngine() {
   this.feat = {
-    status: 'camera-ready', sw: 0, swFrac: 0, lean: 0, dodge: null, block: false,
+    status: 'camera-ready', sw: 0, swFrac: 0, lean: 0, leanPct: 0, shPct: 0, head: 0, thr: 0, noise: 0, dodge: null, block: false,
     rRaised: false, lRaised: false, motion: 1, angR: 0, angL: 0, duck: 0, roll: 0,
     visRS: false, visLS: false, visRW: false, visLW: false, visNose: false,
-    last: '', lastAt: 0, punchCount: 0
+    pcR: 0, pcL: 0, vR: 0, vL: 0, stR: 'GUARD', stL: 'GUARD', act: 'GUARD',
+    last: '', lastAt: 0, punchCount: 0, lastPunchAt: -1e9, lastPunchSide: ''
   };
-  this.baseNoseX = null; this.baseNoseY = null; this.baseRoll = 0;
+  this.baseNoseX = null; this.baseNoseY = null; this.baseMidX = null; this.baseHeadRel = 0; this.baseRoll = 0; this.leanNoise = 0;
   this.punches = [];
   this.reset();
 }
 GestureEngine.prototype.reset = function () {
-  this.lm = null;
+  this.lm = []; this.flt = {}; this.lastT = null;
   this.arms = { R: newArm(), L: newArm() };
   this.noseHist = []; this.rollHist = [];
-  this.dodge = null; this.cR = 0; this.cL = 0; this.relC = 0;
+  this.dodge = null; this.cR = 0; this.cL = 0; this.relC = 0; this.dodgeRel = -1e9; this.steadyT = 0;
   this.block = false; this.bOn = 0; this.bOff = 0;
   var f = this.feat;
-  f.status = 'camera-ready'; f.dodge = null; f.block = false; f.rRaised = false; f.lRaised = false; f.lean = 0; f.duck = 0; f.roll = 0;
+  f.status = 'camera-ready'; f.dodge = null; f.block = false; f.rRaised = false; f.lRaised = false; f.lean = 0; f.leanPct = 0; f.duck = 0; f.roll = 0; f.head = 0; f.act = 'GUARD';
   f.visRS = f.visLS = f.visRW = f.visLW = f.visNose = false;
 };
+/* Automatic neutral pose: remembers where the head, shoulders and shoulder line sit now and how noisy they are. */
 GestureEngine.prototype.captureBaseline = function () {
-  var n = this.noseHist.length, i;
-  if (n < 5) { if (this.lm) { this.baseNoseX = this.lm[0].X; this.baseNoseY = this.lm[0].Y; } return; }
-  var sx = 0, sy = 0, sr = 0;
-  for (i = 0; i < n; i++) { sx += this.noseHist[i].X; sy += this.noseHist[i].Y; }
-  for (i = 0; i < this.rollHist.length; i++) sr += this.rollHist[i];
-  this.baseNoseX = sx / n; this.baseNoseY = sy / n;
-  this.baseRoll = this.rollHist.length ? sr / this.rollHist.length : 0;
+  var L = this.lm, n = this.noseHist.length, i;
+  if (!L[0] || !L[11] || !L[12]) return;
+  var sw = Math.max(8, Math.hypot(L[12].X - L[11].X, L[12].Y - L[11].Y));
+  if (n < 5) { this.baseNoseX = L[0].X; this.baseNoseY = L[0].Y; }
+  else {
+    var sx = 0, sy = 0, sr = 0, v = 0;
+    for (i = 0; i < n; i++) { sx += this.noseHist[i].X; sy += this.noseHist[i].Y; }
+    this.baseNoseX = sx / n; this.baseNoseY = sy / n;
+    for (i = 0; i < n; i++) v += Math.pow((this.noseHist[i].X - this.baseNoseX) / sw, 2);
+    this.leanNoise = Math.min(0.03, Math.sqrt(v / n));
+    for (i = 0; i < this.rollHist.length; i++) sr += this.rollHist[i];
+    this.baseRoll = this.rollHist.length ? sr / this.rollHist.length : 0;
+  }
+  this.baseMidX = (L[11].X + L[12].X) / 2;
+  this.baseHeadRel = (this.baseNoseX - this.baseMidX) / sw;
+  this.feat.noise = this.leanNoise * 100;
 };
 GestureEngine.prototype.drainPunches = function () { var q = this.punches; this.punches = []; return q; };
-GestureEngine.prototype._note = function (label, t, type, side) {
-  this.feat.last = label; this.feat.lastAt = t;
-  if (type === 'punch') { this.punches.push({ side: side, t: t }); this.feat.punchCount++; }
+GestureEngine.prototype._note = function (label, t, type, side, conf) {
+  var f = this.feat; f.last = label; f.lastAt = t;
+  if (type === 'punch') { this.punches.push({ side: side, t: t, conf: conf }); f.punchCount++; f.lastPunchAt = t; f.lastPunchSide = side; }
+};
+
+/* One arm: continuous pose for the avatar, plus the punch state machine
+   GUARD -> PUNCH START -> EXTENSION -> RECOVERY -> GUARD. Returns true on the frame a punch is registered. */
+GestureEngine.prototype._arm = function (s, L, sw, t) {
+  var P = CFG.punch, sens = SETTINGS.punch, a = this.arms[s], f = this.feat;
+  var idx = s === 'R' ? [12, 14, 16, 20, 18] : [11, 13, 15, 19, 17];
+  var S = L[idx[0]], E = L[idx[1]], Wr = L[idx[2]], Fi = L[idx[3]], Pk = L[idx[4]];
+  a.vis = E.v > CFG.visMin && (s === 'R' ? f.visRW : f.visLW);
+  if (!a.vis) { a.hist.length = 0; a.st = 'GUARD'; a.conf = 0; a.v = 0; return false; }
+  var ang = angleAt(E, S, Wr), reach = dist(Wr, S) / sw, zr = (S.Z - Wr.Z) / sw;
+  var hs = -1;
+  if (Fi && Pk && Fi.v > CFG.visMin && Pk.v > CFG.visMin) hs = (dist(Wr, Fi) + dist(Wr, Pk)) / 2 / sw;     // hand size in the image: grows as the fist nears the lens
+  var rx = (Wr.X - S.X) / sw, ry = (Wr.Y - S.Y) / sw;
+  a.ang = ang; a.reach = reach; a.raised = -ry;
+  a.rel.x = rx; a.rel.y = ry; a.erel.x = (E.X - S.X) / sw; a.erel.y = (E.Y - S.Y) / sw;
+  a.ext = clamp((ang - 100) / 70, 0, 1);
+
+  var hist = a.hist, b = null, j;
+  for (j = hist.length - 1; j >= 0; j--) if (t - hist[j].t >= 70) { b = hist[j]; break; }
+  if (!b && hist.length > 1 && t - hist[0].t >= 40) b = hist[0];
+  var v = 0, er = 0, rr = 0, zrate = 0, sr = 0, dirUp = 0, dv = 0;
+  if (b) {
+    var d = Math.max(0.03, (t - b.t) / 1000), dx = rx - b.rx, dy = ry - b.ry, dl = Math.hypot(dx, dy);
+    v = dl / d; er = (ang - b.ang) / d; rr = (reach - b.reach) / d; zrate = (zr - b.zr) / d;
+    sr = hs >= 0 && b.hs >= 0 ? (hs - b.hs) / d : 0;
+    dirUp = dl > 1e-4 ? -dy / dl : 0; dv = v - b.v;
+  }
+  hist.push({ t: t, rx: rx, ry: ry, ang: ang, reach: reach, zr: zr, hs: hs, v: v });
+  while (hist.length && t - hist[0].t > 500) hist.shift();
+  a.v = v;
+
+  var velC = clamp((v - P.vMin / sens) / (P.vSpan / sens), 0, 1);
+  var extC = clamp(er / (P.extRate / sens), 0, 1);
+  var accC = clamp(dv / (P.accSpan / sens), 0, 1);
+  var reachC = clamp(rr / (P.reachRate / sens), 0, 1);
+  var zC = clamp(zrate / (P.zRate / sens), 0, 1);
+  var scC = clamp(sr / (P.scaleRate / sens), 0, 1);
+  var fwd = Math.max(extC, reachC * 0.85, zC, scC);
+  var score = 0.34 * velC + 0.22 * extC + 0.16 * accC + 0.14 * Math.max(zC, reachC * 0.85) + 0.14 * scC;
+  if (dirUp > 0.75 && zC < 0.3 && scC < 0.3) score *= 0.4;        // a hand lifted straight up is not a jab
+  if (fwd < P.fwdMin) score = Math.min(score, 0.3);                // speed without any forward evidence is not a punch
+  a.score = score; a.conf = Math.max(score, a.conf * 0.88);
+  a.cues = 'v' + velC.toFixed(1) + ' e' + extC.toFixed(1) + ' a' + accC.toFixed(1) + ' r' + reachC.toFixed(1) + ' z' + zC.toFixed(1) + ' h' + scC.toFixed(1);
+
+  var fire = false;
+  if (a.st === 'GUARD' && score >= P.start && v > 0.5 / sens) { a.st = 'START'; a.sT = t; a.peak = score; }
+  if (a.st === 'START') {
+    if (score > a.peak) a.peak = score;
+    if (score >= P.fire) {
+      a.st = 'EXTENSION'; fire = true; a.exT = t; a.peakV = v; a.peakReach = reach; a.fireAng = ang; a.lastPunch = t;
+    } else if (t - a.sT > P.startMs || (score < 0.12 && v < 0.5 / sens)) a.st = 'GUARD';
+  } else if (a.st === 'EXTENSION') {
+    if (v > a.peakV) a.peakV = v;
+    if (reach > a.peakReach) a.peakReach = reach;
+    if (v < 0.4 * a.peakV || t - a.exT > P.extMs) {
+      a.st = 'RECOVERY'; a.recT = t; a.retr = false;
+      a.cd = clamp(0.6 * (t - a.exT) + P.cdBase, P.cdMin, P.cdMax);
+    }
+  } else if (a.st === 'RECOVERY') {
+    if (ang < a.fireAng - 22 || reach < a.peakReach - 0.22 || er < -250) a.retr = true;      // the hand has come back toward the guard
+    var el = t - a.recT;
+    if ((a.retr && el >= a.cd && v < 1.6 / sens) || el > P.recMaxMs) a.st = 'GUARD';
+  }
+  return fire;
 };
 
 GestureEngine.prototype.update = function (raw, vw, vh, t) {
-  var i, L = this.lm, k = CFG.smooth, f = this.feat;
-  if (!L) {
-    L = this.lm = [];
-    for (i = 0; i < raw.length; i++) {
-      var q = raw[i];
-      L.push({ X: (1 - q.x) * vw, Y: q.y * vh, Z: q.z * vw, v: q.visibility == null ? 1 : q.visibility });
-    }
-  } else {
-    for (i = 0; i < raw.length; i++) {
-      var r = raw[i], o = L[i];
-      o.X += ((1 - r.x) * vw - o.X) * k;
-      o.Y += (r.y * vh - o.Y) * k;
-      o.Z += (r.z * vw - o.Z) * k;
-      o.v = r.visibility == null ? 1 : r.visibility;
-    }
+  var i, f = this.feat, L = this.lm, ar = vh / vw;
+  var dt = this.lastT == null ? 0.033 : clamp((t - this.lastT) / 1000, 0.008, 0.1); this.lastT = t;
+  for (i = 0; i < JOINTS.length; i++) {
+    var J = JOINTS[i], j = J[0], q = raw[j], F = this.flt[j];
+    if (!F) F = this.flt[j] = [new OneEuro(J[1], J[2]), new OneEuro(J[1], J[2]), new OneEuro(J[1], J[2])];
+    var o = L[j] || (L[j] = {});
+    o.X = F[0].f(1 - q.x, dt) * vw;               // mirrored: +X is the player's right
+    o.Y = F[1].f(q.y * ar, dt) * vw;
+    o.Z = F[2].f(q.z, dt) * vw;
+    o.v = q.visibility == null ? 1 : q.visibility;
   }
-  // Upper body only: landmarks 0 (nose), 11/12 (shoulders), 13/14 (elbows), 15/16 (wrists). Hips and legs are never read.
+  // Upper body only: nose (0), shoulders (11/12), elbows (13/14), wrists (15/16) and the hand points (17-20). Hips and legs are never read.
   var RS = L[12], LS = L[11], nose = L[0];
   var sw = Math.hypot(RS.X - LS.X, RS.Y - LS.Y);
   f.sw = sw; f.swFrac = sw / vw;
@@ -281,93 +391,67 @@ GestureEngine.prototype.update = function (raw, vw, vh, t) {
 
   this.noseHist.push({ X: nose.X, Y: nose.Y, t: t });
   if (this.noseHist.length > 30) this.noseHist.shift();
-  var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
-  for (i = 0; i < this.noseHist.length; i++) {
-    var nh = this.noseHist[i];
-    if (nh.X < minX) minX = nh.X; if (nh.X > maxX) maxX = nh.X;
-    if (nh.Y < minY) minY = nh.Y; if (nh.Y > maxY) maxY = nh.Y;
+  var nh = this.noseHist, minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  for (i = 0; i < nh.length; i++) {
+    if (nh[i].X < minX) minX = nh[i].X; if (nh[i].X > maxX) maxX = nh[i].X;
+    if (nh[i].Y < minY) minY = nh[i].Y; if (nh[i].Y > maxY) maxY = nh[i].Y;
   }
-  f.motion = this.noseHist.length < 12 ? 1 : Math.max(maxX - minX, maxY - minY) / sw;
+  f.motion = nh.length < 12 ? 1 : Math.max(maxX - minX, maxY - minY) / sw;
 
-  // shoulder roll: how far the shoulder line is tilted (upper-body lean), relative to the calibrated posture
   var rawRoll = Math.atan2(RS.Y - LS.Y, RS.X - LS.X);
   this.rollHist.push(rawRoll); if (this.rollHist.length > 30) this.rollHist.shift();
   f.roll = rawRoll - this.baseRoll;
 
-  // ---- arms: continuous pose for retargeting + punches over several frames ----
-  var P = CFG.punch, sides = ['R', 'L'], si;
-  for (si = 0; si < 2; si++) {
-    var s = sides[si];
-    var idx = s === 'R' ? [12, 14, 16] : [11, 13, 15];
-    var S = L[idx[0]], E = L[idx[1]], Wr = L[idx[2]];
-    var a = this.arms[s];
-    a.vis = E.v > CFG.visMin && (s === 'R' ? f.visRW : f.visLW);
-    if (!a.vis) { a.hist.length = 0; a.armed = false; continue; }
-    var ang = angleAt(E, S, Wr);
-    var reach = dist(Wr, S) / sw;
-    var zr = (S.Z - Wr.Z) / sw;
-    a.ang = ang; a.reach = reach; a.raised = (S.Y - Wr.Y) / sw;
-    a.rel.x = (Wr.X - S.X) / sw; a.rel.y = (Wr.Y - S.Y) / sw;
-    a.erel.x = (E.X - S.X) / sw; a.erel.y = (E.Y - S.Y) / sw;
-    a.ext = clamp((ang - 100) / 70, 0, 1);
-    a.hist.push({ t: t, ang: ang, reach: reach, zr: zr, X: Wr.X, Y: Wr.Y });
-    while (a.hist.length && t - a.hist[0].t > P.windowMs + 150) a.hist.shift();
+  // ---- arms ----
+  var sides = ['R', 'L'], si;
+  for (si = 0; si < 2; si++) if (this._arm(sides[si], L, sw, t)) this._note(sides[si] === 'R' ? 'RIGHT PUNCH' : 'LEFT PUNCH', t, 'punch', sides[si], this.arms[sides[si]].score);
+  var aR = this.arms.R, aL = this.arms.L;
+  f.angR = aR.ang; f.angL = aL.ang; f.pcR = aR.conf; f.pcL = aL.conf; f.vR = aR.v; f.vL = aL.v; f.stR = aR.st; f.stL = aL.st;
+  f.rRaised = aR.vis && aR.raised > CFG.raiseAbove;
+  f.lRaised = aL.vis && aL.raised > CFG.raiseAbove;
+  if (f.status === 'body' && !(aR.vis && aL.vis)) f.status = 'hands-missing';
 
-    if (!a.armed && ang < P.rearmAng) a.armed = true;
-    if (a.armed && t - a.lastPunch > P.cooldown) {
-      var win = [], j;
-      for (j = 0; j < a.hist.length; j++) if (t - a.hist[j].t <= P.windowMs) win.push(a.hist[j]);
-      if (win.length >= 3) {
-        var first = win[0], n = win.length;
-        var minAng = 1e9, minReach = 1e9, minZ = 1e9;
-        for (j = 0; j < n - 1; j++) {
-          if (win[j].ang < minAng) minAng = win[j].ang;
-          if (win[j].reach < minReach) minReach = win[j].reach;
-          if (win[j].zr < minZ) minZ = win[j].zr;
-        }
-        var dt = Math.max(0.001, (t - first.t) / 1000);
-        var rise = ang - minAng, rr_ = reach - minReach, dz = zr - minZ;
-        var speed = Math.hypot(Wr.X - first.X, Wr.Y - first.Y) / sw / dt;
-        var up = win[n - 1].ang >= win[n - 3].ang - 2 || win[n - 1].reach >= win[n - 3].reach;
-        var A = ang > P.extAng && rise > P.riseAng;
-        var B = rr_ > P.reachRise && ang > 120 && speed > P.minSpeed;
-        var C = dz > P.zRise && ang > 125 && rise > 15;
-        if (up && (A || B || C)) {
-          a.armed = false; a.lastPunch = t;
-          this._note(s === 'R' ? 'RIGHT PUNCH' : 'LEFT PUNCH', t, 'punch', s);
-        }
-      }
-    }
-  }
-  f.angR = this.arms.R.ang; f.angL = this.arms.L.ang;
-  f.rRaised = this.arms.R.vis && this.arms.R.raised > CFG.raiseAbove;
-  f.lRaised = this.arms.L.vis && this.arms.L.raised > CFG.raiseAbove;
-  if (f.status === 'body' && !(this.arms.R.vis && this.arms.L.vis)) f.status = 'hands-missing';
-
-  // ---- head position: sideways lean/move and duck, relative to the calibrated baseline ----
-  if (this.baseNoseX == null) this.baseNoseX = nose.X;
-  var ld = (nose.X - this.baseNoseX) / sw;       // + = player's right
-  f.lean = ld;
-  if (this.baseNoseY == null) this.baseNoseY = nose.Y;
+  // ---- continuous head and shoulder lean (normalised by shoulder width), relative to the neutral pose ----
+  var midX = (RS.X + LS.X) / 2;
+  if (this.baseNoseX == null) { this.baseNoseX = nose.X; this.baseNoseY = nose.Y; this.baseMidX = midX; this.baseHeadRel = (nose.X - midX) / sw; }
+  var headDx = (nose.X - this.baseNoseX) / sw, shDx = (midX - this.baseMidX) / sw;
+  var ld = headDx + 0.35 * shDx;          // head leads; the shoulders add to it when the whole upper body leans
+  f.lean = ld; f.leanPct = ld * 100; f.shPct = shDx * 100;
+  f.head = clamp((nose.X - midX) / sw - this.baseHeadRel, -0.6, 0.6);
   var dyn = (nose.Y - this.baseNoseY) / sw;
   f.duck = clamp(dyn / CFG.pos.duckFull, 0, 1);
-  if (Math.abs(dyn) < 0.2) this.baseNoseY += (nose.Y - this.baseNoseY) * CFG.lean.adapt;
-  var LN = CFG.lean;
+
+  // quiet re-centring: tiny offsets are absorbed at once, a larger offset only after the head has been still for 2 s
+  var oldN = null; for (i = nh.length - 1; i >= 0; i--) if (t - nh[i].t >= 300) { oldN = nh[i]; break; }
+  var mv = oldN ? Math.hypot(nose.X - oldN.X, nose.Y - oldN.Y) / sw : 1;
+  this.steadyT = mv < 0.03 ? this.steadyT + dt : 0;
   if (this.dodge === null) {
-    this.cR = ld > LN.on ? this.cR + 1 : 0;
-    this.cL = ld < -LN.on ? this.cL + 1 : 0;
-    if (this.cR >= LN.frames) { this.dodge = 'R'; this._note('LEAN RIGHT', t, 'dodge'); }
-    else if (this.cL >= LN.frames) { this.dodge = 'L'; this._note('LEAN LEFT', t, 'dodge'); }
-    if (Math.abs(ld) < 0.28) this.baseNoseX += (nose.X - this.baseNoseX) * LN.adapt;
+    var rate = Math.abs(ld) < 0.02 ? 0.01 : (this.steadyT > 2 && Math.abs(ld) < 0.2 ? 0.03 : 0);
+    if (rate) { this.baseNoseX += (nose.X - this.baseNoseX) * rate; this.baseMidX += (midX - this.baseMidX) * rate; }
+    var rY = Math.abs(dyn) < 0.05 ? 0.01 : (this.steadyT > 2 && Math.abs(dyn) < 0.3 ? 0.03 : 0);
+    if (rY) this.baseNoseY += (nose.Y - this.baseNoseY) * rY;
+  }
+
+  // ---- dodge flag with hysteresis (statistics, tutorial and debug; the avatar itself follows the continuous lean) ----
+  var DD = CFG.dodge, onT = Math.max(DD.on / SETTINGS.dodge, this.leanNoise * 3), offT = onT * DD.offRatio;
+  f.thr = onT * 100;
+  if (this.dodge === null) {
+    if (t - this.dodgeRel < DD.refractMs) { this.cR = 0; this.cL = 0; }
+    else {
+      this.cR = ld > onT ? this.cR + 1 : 0;
+      this.cL = ld < -onT ? this.cL + 1 : 0;
+      if (this.cR >= DD.frames) { this.dodge = 'R'; this._note('LEAN RIGHT', t, 'dodge'); }
+      else if (this.cL >= DD.frames) { this.dodge = 'L'; this._note('LEAN LEFT', t, 'dodge'); }
+    }
   } else {
-    var gone = this.dodge === 'R' ? ld < LN.off : ld > -LN.off;
+    var gone = this.dodge === 'R' ? ld < offT : ld > -offT;
     this.relC = gone ? this.relC + 1 : 0;
-    if (this.relC >= 2) { this.dodge = null; this.relC = 0; this.cR = 0; this.cL = 0; }
+    if (this.relC >= 2) { this.dodge = null; this.relC = 0; this.cR = 0; this.cL = 0; this.dodgeRel = t; }
   }
   f.dodge = this.dodge;
 
   // ---- block: both wrists near the head, elbows bent ----
-  var aR = this.arms.R, aL = this.arms.L, B_ = CFG.block;
+  var B_ = CFG.block;
   var nearHead = function (W) {
     return Math.abs(W.X - nose.X) / sw < B_.nearHead && (W.Y - nose.Y) / sw < B_.belowNose && (nose.Y - W.Y) / sw < 1.3;
   };
@@ -376,6 +460,15 @@ GestureEngine.prototype.update = function (raw, vw, vh, t) {
   if (!this.block && this.bOn >= B_.frames) { this.block = true; this._note('BLOCK', t, 'block'); }
   else if (this.block && this.bOff >= B_.frames) this.block = false;
   f.block = this.block;
+
+  // current action label for the HUD and the developer panel
+  var act = 'GUARD';
+  if (f.block) act = 'BLOCK';
+  else if (t - f.lastPunchAt < 350) act = f.lastPunchSide === 'R' ? 'JAB R' : 'JAB L';
+  else if (this.dodge) act = this.dodge === 'R' ? 'DODGE R' : 'DODGE L';
+  else if (f.duck > 0.3) act = 'DUCK';
+  else if (Math.abs(ld) > 0.025) act = ld > 0 ? 'LEAN R' : 'LEAN L';
+  f.act = act;
   return f;
 };
 
@@ -425,14 +518,18 @@ Tracker.prototype.isBlocking = function () { return this.engine.feat.block; };
 /* Continuous upper-body pose for the avatar. Arm values are in shoulder-widths, relative to the same-side shoulder;
    "out" is away from the body, "up" is image-down-positive (so negative = hand above the shoulder). null = not visible. */
 Tracker.prototype.getUpper = function () {
-  var e = this.engine, f = e.feat, P = CFG.pos;
-  var l = Math.abs(f.lean) < P.dead ? 0 : f.lean - (f.lean < 0 ? -P.dead : P.dead);
+  var e = this.engine, f = e.feat, P = CFG.pos, D = CFG.dodge, sens = SETTINGS.dodge;
   var tracking = f.visRS && f.visLS;
+  // Continuous lean: a small head/shoulder offset already moves the avatar noticeably (ease-out curve), and it saturates at a modest lean.
+  var l = f.lean, al = Math.abs(l), dead = Math.min(0.06, Math.max(D.dead, e.leanNoise * 2.5)), full = D.full / sens;
+  var u = clamp((al - dead) / Math.max(0.02, full - dead), 0, 1);
+  var x = (l < 0 ? -1 : 1) * P.max * (1 - Math.pow(1 - u, 1.6));
   var arm = function (a, sg) { return tracking && a.vis ? { out: a.rel.x * sg, up: a.rel.y, eout: a.erel.x * sg, eup: a.erel.y, ext: a.ext } : null; };
   return {
-    x: tracking ? clamp(l * P.scale, -P.max, P.max) : 0,
-    duck: tracking && f.duck >= 0.1 ? f.duck : 0,
+    x: tracking ? x : 0,
+    duck: tracking && f.duck >= 0.06 ? f.duck : 0,
     roll: tracking ? f.roll : 0,
+    head: tracking ? f.head : 0,
     R: arm(e.arms.R, 1), L: arm(e.arms.L, -1),
     vis: { ls: f.visLS, rs: f.visRS, lw: f.visLW, rw: f.visRW, shoulders: f.visLS && f.visRS, all: f.visLS && f.visRS && f.visLW && f.visRW }
   };
@@ -622,7 +719,7 @@ DebugInput.prototype.drainPunches = function () { var q = this.queue; this.queue
 DebugInput.prototype.isBlocking = function () { return !!(this.keys[' '] || this.keys.b); };
 DebugInput.prototype.getUpper = function () {
   var k = this.keys;
-  return { x: (k.ArrowLeft || k.a) ? -150 : (k.ArrowRight || k.d) ? 150 : 0, duck: (k.ArrowDown || k.s) ? 1 : 0, roll: 0, R: null, L: null, vis: null };
+  return { x: (k.ArrowLeft || k.a) ? -150 : (k.ArrowRight || k.d) ? 150 : 0, duck: (k.ArrowDown || k.s) ? 1 : 0, roll: 0, head: 0, R: null, L: null, vis: null };
 };
 
 /* ======================================================================
@@ -665,6 +762,70 @@ var SilentFx = { whoosh: nop, punchHit: nop, hurt: nop, block: nop, dodge: nop, 
 function nop() {}
 
 /* ======================================================================
+   ANIMATION LAYER
+   Clips are ADDITIVE offsets blended on top of the live pose. They never replace tracking, they only add polish.
+   Offsets: x (px), tilt (rad), dip (px), head (px), R/L: { out, up } (shoulder widths, added to the tracked hand position).
+   Built-in procedural clips: idle, jabL, jabR, dodgeL, dodgeR, block, hit.
+   Add your own rigged or hand-authored clips later, without touching the game code:
+     MotionBoxingAnimations.register('jabR', { duration: 0.3, keys: [ { t: 0 }, { t: 0.1, tilt: -0.05, R: { out: 0.2 } }, { t: 0.3 } ] });
+     MotionBoxingAnimations.load('clips.json')   // { "clips": { "jabR": { "duration": 0.3, "keys": [ ... ] } } }
+   or supply sample: function (u) { return { tilt: ... }; } with u in 0..1. Re-registering a built-in name replaces it.
+   ====================================================================== */
+var ANIM_CLIPS = {};
+function animRegister(name, def) { if (name && def && def.duration > 0 && (def.sample || def.keys)) ANIM_CLIPS[name] = def; }
+function animBell(u) { return Math.sin(clamp(u, 0, 1) * Math.PI); }
+function animKeys(keys, t) {
+  var i, a = keys[0], b = keys[keys.length - 1];
+  if (t <= a.t) return a; if (t >= b.t) return b;
+  for (i = 0; i < keys.length - 1; i++) if (t >= keys[i].t && t <= keys[i + 1].t) { a = keys[i]; b = keys[i + 1]; break; }
+  var k = (t - a.t) / Math.max(1e-6, b.t - a.t), m = function (p, q) { return (p || 0) + ((q || 0) - (p || 0)) * k; };
+  var ar = a.R || {}, br = b.R || {}, al = a.L || {}, bl = b.L || {};
+  return { x: m(a.x, b.x), tilt: m(a.tilt, b.tilt), dip: m(a.dip, b.dip), head: m(a.head, b.head),
+           R: { out: m(ar.out, br.out), up: m(ar.up, br.up) }, L: { out: m(al.out, bl.out), up: m(al.up, bl.up) } };
+}
+(function () {
+  animRegister('idle', { loop: true, duration: 3.2, weight: 0.6, sample: function (u) { var s = Math.sin(u * 6.2832); return { x: s * 2.5, tilt: s * 0.008, dip: Math.sin(u * 12.566) * 1.5 }; } });
+  animRegister('jabR', { duration: 0.24, sample: function (u) { var b = animBell(u); return { tilt: -0.035 * b, dip: 5 * b, head: 5 * b }; } });
+  animRegister('jabL', { duration: 0.24, sample: function (u) { var b = animBell(u); return { tilt: 0.035 * b, dip: 5 * b, head: -5 * b }; } });
+  animRegister('dodgeR', { duration: 0.3, sample: function (u) { var b = animBell(u); return { x: 9 * b, tilt: 0.05 * b, head: 6 * b }; } });
+  animRegister('dodgeL', { duration: 0.3, sample: function (u) { var b = animBell(u); return { x: -9 * b, tilt: -0.05 * b, head: -6 * b }; } });
+  animRegister('block', { duration: 0.26, sample: function (u) { var b = animBell(u); return { dip: 8 * b }; } });
+  animRegister('hit', { duration: 0.4, sample: function (u) { var d = 1 - u; return { x: Math.sin(u * 25) * d * 8, tilt: Math.sin(u * 25) * d * 0.04, dip: 7 * d * d }; } });
+})();
+function AnimMixer() { this.act = []; this.out = { x: 0, tilt: 0, dip: 0, head: 0, R: { out: 0, up: 0 }, L: { out: 0, up: 0 } }; }
+AnimMixer.prototype.play = function (name, o) {
+  var c = ANIM_CLIPS[name], i; if (!c) return false;
+  o = o || {};
+  for (i = 0; i < this.act.length; i++) if (this.act[i].name === name) { if (!c.loop) this.act[i].t = 0; return true; }
+  this.act.push({ name: name, c: c, t: 0, w: o.weight != null ? o.weight : (c.weight != null ? c.weight : 1), fade: o.fade != null ? o.fade : 0.06 });
+  return true;
+};
+AnimMixer.prototype.update = function (dt) {
+  var o = this.out, i;
+  o.x = o.tilt = o.dip = o.head = 0; o.R.out = o.R.up = o.L.out = o.L.up = 0;
+  for (i = this.act.length - 1; i >= 0; i--) {
+    var a = this.act[i], d = a.c.duration;
+    a.t += dt;
+    if (!a.c.loop && a.t >= d) { this.act.splice(i, 1); continue; }
+    if (!SETTINGS.anim) continue;
+    var env = Math.min(1, a.t / Math.max(0.001, a.fade));
+    if (!a.c.loop) env *= Math.min(1, (d - a.t) / 0.08);
+    var w = a.w * env, s = a.c.sample ? a.c.sample((a.t % d) / d) : animKeys(a.c.keys, a.t % d);
+    o.x += (s.x || 0) * w; o.tilt += (s.tilt || 0) * w; o.dip += (s.dip || 0) * w; o.head += (s.head || 0) * w;
+    if (s.R) { o.R.out += (s.R.out || 0) * w; o.R.up += (s.R.up || 0) * w; }
+    if (s.L) { o.L.out += (s.L.out || 0) * w; o.L.up += (s.L.up || 0) * w; }
+  }
+  return o;
+};
+window.MotionBoxingAnimations = {
+  register: animRegister, clips: ANIM_CLIPS,
+  load: function (src) {
+    var use = function (j) { var c = (j && j.clips) || j || {}; Object.keys(c).forEach(function (k) { animRegister(k, c[k]); }); return Object.keys(c); };
+    return typeof src === 'string' ? fetch(src).then(function (r) { return r.json(); }).then(use) : Promise.resolve(use(src));
+  }
+};
+
+/* ======================================================================
    GAME STATE + RULES
    ====================================================================== */
 var W = 480, H = 640;
@@ -678,7 +839,7 @@ function createGame() {
     hits: 0, swings: 0, dodges: 0, blocks: 0, taken: 0,
     shake: 0, flash: 0, hitstop: 0, particles: [], popups: [],
     vis: null, lostT: 0, paused: false,
-    p: { punch: null, cd: { R: 0, L: 0 }, cdAny: 0, x: 0, duck: 0, roll: 0, block: 0, blocking: false, hurt: 0, happy: 0,
+    p: { punch: null, cd: { R: 0, L: 0 }, cdAny: 0, x: 0, duck: 0, roll: 0, head: 0, anim: null, leanZ: 0, wasBlock: false, block: 0, blocking: false, hurt: 0, happy: 0,
          arm: { R: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0 }, L: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0 } },
          tracked: { R: false, L: false } },
     a: { state: 'idle', stateT: 0, timer: 1.4, side: 'right', hurt: 0, hurtDir: 1, happy: 0, guardCool: 0, struck: false,
@@ -729,7 +890,7 @@ function aiStrikeLands(G, fx) {
     G.pHP = Math.max(0, G.pHP - 3); G.blocks++; G.score += 50;
     addPopup(G, 'BLOCKED -3', px, 400, '#a4acdc', 32); fx.block(); G.shake = Math.max(G.shake, 7); burst(G, px, 500, '#6f8cff', 10, 200);
   } else {
-    G.pHP = Math.max(0, G.pHP - 10); G.taken++; p.hurt = 0.45; G.flash = 1; G.shake = 18; G.hitstop = 0.08; G.combo = 0; a.happy = 0.8;
+    G.pHP = Math.max(0, G.pHP - 10); G.taken++; p.hurt = 0.45; if (G.mixer) G.mixer.play('hit'); G.flash = 1; G.shake = 18; G.hitstop = 0.08; G.combo = 0; a.happy = 0.8;
     fx.hurt(); addPopup(G, '-10', px, 410, '#ff3b4f', 52); burst(G, px, 480, '#ff3b4f', 16, 280);
   }
 }
@@ -778,7 +939,15 @@ function stepGame(G, dt, input, fx) {
 
   var punches = input.drainPunches(), ub = input.getUpper(), blocking = input.isBlocking();
   var k14 = Math.min(1, dt * 14), k20 = Math.min(1, dt * 20);
-  p.x += (ub.x - p.x) * k14; p.duck += (ub.duck - p.duck) * k14; p.roll += (ub.roll - p.roll) * k14;
+  var dx = (ub.x - p.x) * (1 - Math.exp(-dt * 20)), lim = 1500 * dt;       // smooth, never teleports: eased and speed-limited
+  p.x += clamp(dx, -lim, lim);
+  p.duck += (ub.duck - p.duck) * k14; p.roll += (ub.roll - p.roll) * k14; p.head += ((ub.head || 0) - p.head) * k14;
+  if (!G.mixer) { G.mixer = new AnimMixer(); G.mixer.play('idle'); }
+  if (p.leanZ === 0 && Math.abs(p.x) > 45) { p.leanZ = p.x > 0 ? 1 : -1; G.mixer.play(p.leanZ > 0 ? 'dodgeR' : 'dodgeL'); }
+  else if (p.leanZ !== 0 && Math.abs(p.x) < 18) p.leanZ = 0;
+  if (blocking && !p.wasBlock) G.mixer.play('block');
+  p.wasBlock = blocking;
+  p.anim = G.mixer.update(dt);
   p.blocking = blocking; p.block += ((blocking ? 1 : 0) - p.block) * Math.min(1, dt * 16);
   ['R', 'L'].forEach(function (s) {          // smooth joint retargeting; a hand that is not visible relaxes to guard
     var a = p.arm[s], t = ub[s], T = t || ARM0;
@@ -808,8 +977,8 @@ function stepGame(G, dt, input, fx) {
     p.cdAny = Math.max(0, p.cdAny - dt); p.cd.R = Math.max(0, p.cd.R - dt); p.cd.L = Math.max(0, p.cd.L - dt);
     for (i = 0; i < punches.length; i++) {
       var s = punches[i].side;
-      if (p.cd[s] <= 0 && p.cdAny <= 0 && (!p.punch || p.punch.t > 0.16)) {
-        p.punch = { side: s, t: 0, resolved: false }; p.cd[s] = 0.42; p.cdAny = 0.16; G.swings++; fx.whoosh();
+      if (p.cd[s] <= 0 && p.cdAny <= 0 && (!p.punch || p.punch.t > 0.11)) {
+        p.punch = { side: s, t: 0, resolved: false }; p.cd[s] = 0.24; p.cdAny = 0.11; G.swings++; fx.whoosh(); G.mixer.play(s === 'R' ? 'jabR' : 'jabL');
       }
     }
     if (p.punch) {
@@ -1006,16 +1175,17 @@ function arm2(ctx, sx, sy, ex, ey, gx, gy, w, col) {
   ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(gx, gy); ctx.stroke();
 }
 function drawPlayer(ctx, G, time) {
-  var p = G.p;
+  var p = G.p, an = p.anim || { x: 0, tilt: 0, dip: 0, head: 0, R: { out: 0, up: 0 }, L: { out: 0, up: 0 } };
   var jolt = p.hurt > 0 ? Math.sin(p.hurt * 70) * 7 * (p.hurt / 0.45) : 0;
-  var baseX = 240 + p.x + jolt, dip = (p.hurt > 0 ? 14 * (p.hurt / 0.45) : 0) + p.duck * 110, breathe = Math.sin(time * 3) * 2;
-  var tilt = clamp(p.roll * 1.3 + (p.x / 170) * 0.1, -0.45, 0.45);      // shoulder roll drives the body lean
+  var baseX = 240 + p.x + jolt + an.x, dip = (p.hurt > 0 ? 14 * (p.hurt / 0.45) : 0) + p.duck * 110 + an.dip, breathe = Math.sin(time * 3) * 2;
+  var tilt = clamp(p.roll * 1.3 + (p.x / 170) * 0.16 + an.tilt, -0.5, 0.5);      // shoulder roll drives the body lean
   ctx.save(); ctx.translate(baseX, 640); ctx.rotate(tilt); ctx.translate(0, -640 + dip + breathe);
   var g = ctx.createLinearGradient(0, 574, 0, 700); g.addColorStop(0, '#3556ff'); g.addColorStop(1, '#1b2fa0');
   ctx.fillStyle = g; rr(ctx, -122, 574, 244, 230, 64); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,.85)'; rr(ctx, -7, 604, 14, 120, 6); ctx.fill();
   ell(ctx, -62, 612, 36, 20, 'rgba(255,255,255,.1)'); ell(ctx, 62, 612, 36, 20, 'rgba(255,255,255,.1)');
   ctx.fillStyle = '#e0a877'; rr(ctx, -22, 548, 44, 40, 12); ctx.fill();
+  ctx.save(); ctx.translate(clamp(p.head, -0.6, 0.6) * 60 + an.head, 0); ctx.translate(0, 575); ctx.rotate(clamp(p.head * 0.5, -0.3, 0.3)); ctx.translate(0, -575);   // the head leans a little on its own
   circ(ctx, -50, 512, 11, '#f7c9a0'); circ(ctx, 50, 512, 11, '#f7c9a0');
   circ(ctx, 0, 504, 52, '#4a2c17'); ell(ctx, -14, 484, 24, 12, 'rgba(255,255,255,.1)');
   ctx.fillStyle = '#2f55ff'; rr(ctx, -53, 496, 106, 15, 6); ctx.fill(); ctx.fillStyle = '#fff'; rr(ctx, -53, 501, 106, 3, 1); ctx.fill();
@@ -1023,12 +1193,13 @@ function drawPlayer(ctx, G, time) {
   ctx.fillStyle = '#2f55ff'; ctx.beginPath(); ctx.moveTo(44, 498); ctx.lineTo(74, 490 + wag); ctx.lineTo(70, 504 + wag); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(44, 506); ctx.lineTo(70, 516 - wag); ctx.lineTo(62, 526 - wag); ctx.closePath(); ctx.fill();
   ctx.restore();
+  ctx.restore();
 
   ['L', 'R'].forEach(function (side) {
     var sg = side === 'R' ? 1 : -1, a = p.arm[side], tr = p.tracked[side];
     // wrist and elbow of the avatar follow the player's real wrist and elbow, proportionally
-    var gx = baseX + sg * (108 + clamp(a.out, -0.7, 2.0) * 120);
-    var gy = clamp(510 + dip + (a.up + 0.5) * 140, 330, 650);
+    var gx = baseX + sg * (108 + clamp(a.out + an[side].out, -0.7, 2.0) * 120);
+    var gy = clamp(510 + dip + (a.up + an[side].up + 0.5) * 140, 330, 650);
     var ex = baseX + sg * (100 + clamp(a.eout, -0.6, 1.5) * 80), ey = 604 + dip + clamp(a.eup, -0.6, 1.1) * 60;
     var gr = 40, aw = 34, bl = p.block * (tr ? 0.4 : 1);
     gx = lerp(gx, baseX + sg * 32, bl); gy = lerp(gy, 500 + dip, bl); gr = lerp(gr, 47, bl);
@@ -1147,7 +1318,7 @@ function drawHUD(ctx, G, time) {
     var local = ((3.2 - G.cd) % 0.8) / 0.8, label = ['3', '2', '1', 'FIGHT!'][Math.min(3, Math.max(0, G.cdIdx))];
     var s = 1 + (1 - easeOut(Math.min(1, local * 2.2))) * 0.8;
     textOutlined(ctx, label, 240, 320, (label === 'FIGHT!' ? 92 : 150) * s, label === 'FIGHT!' ? '#ffc42e' : '#fff', 1);
-    ctx.font = '14px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.textAlign = 'center'; ctx.fillText('KEEP BOTH HANDS IN VIEW', 240, 410);
+    ctx.font = '14px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.textAlign = 'center'; ctx.fillText('SIT OR STAND NATURALLY · BOTH HANDS IN VIEW', 240, 410);
   } else if (G.phase === 'fight' && G.fightT < 0.7) {
     textOutlined(ctx, 'FIGHT!', 240, 330, 92, '#ffc42e', 1 - G.fightT / 0.7);
   } else if (G.phase === 'ended') {
@@ -1360,7 +1531,7 @@ function StartScreen(props) {
         h('li', null, 'Upper body only. Only the nose, shoulders, elbows and wrists are read from MediaPipe Pose Landmarker (lite model). Legs and hips are never used or drawn. The model still estimates all 33 points internally, and that cost cannot be avoided with this model.'),
         h('li', null, 'Everything runs on your device. Video is not uploaded.'),
         h('li', null, 'The boxer is retargeted continuously: gloves follow your wrists, elbows follow your elbows, the body tilts with your shoulder line and shifts with your head. All distances are normalised by shoulder width, so a close phone works. Joint values are smoothed with a short low-latency filter.'),
-        h('li', null, 'A single RGB camera cannot measure depth. How far an arm reaches toward the lens is inferred from elbow straightening, so punches use 2D heuristics and a weak depth cue. Thresholds live in CFG at the top of the script.'),
+        h('li', null, 'A single RGB camera cannot measure depth, and a jab straight at the lens barely moves in the picture. Punches are therefore scored from several weak cues at once: wrist speed relative to the shoulder, elbow straightening, acceleration, reach, MediaPipe\u2019s rough z estimate and the fist growing in the image. At least one forward cue plus enough speed is required, so raising or holding a hand never counts. It is a best-effort estimate and will sometimes miss or fire early. Use the tuning panel to adjust it. Thresholds live in CFG.'),
         h('li', null, 'Bruno aims a red zone at you, locks it, then strikes. The punch only lands if your body is inside the zone: lean out of narrow shots, duck high ones, block when you cannot escape.'),
         h('li', null, 'Tracking can be lost if a hand leaves the frame. The L hand, R hand and Shoulders lights show what the camera sees, a banner appears in the match, and the fight pauses if your shoulders disappear.'),
         h('li', null, 'Menus use a virtual cursor on your right hand, with a one-second hold to select. The cursor is off during the fight.'),
@@ -1457,8 +1628,8 @@ function Calibration(props) {
 var STEPS = [
   { label: 'Raise your RIGHT hand', hint: 'Lift your right hand above your shoulder', test: function (s) { return s.rRaised; } },
   { label: 'Raise your LEFT hand', hint: 'Lift your left hand above your shoulder', test: function (s) { return s.lRaised; } },
-  { label: 'Lean RIGHT', hint: 'Tilt your upper body to your right', test: function (s) { return s.dodge === 'R'; } },
-  { label: 'Lean LEFT', hint: 'Tilt your upper body to your left', test: function (s) { return s.dodge === 'L'; } },
+  { label: 'Lean RIGHT', hint: 'Just tip your head and shoulders a little to your right', test: function (s) { return s.dodge === 'R'; } },
+  { label: 'Lean LEFT', hint: 'Just tip your head and shoulders a little to your left', test: function (s) { return s.dodge === 'L'; } },
   { label: 'DUCK', hint: 'Drop your head low', test: function (s) { return s.duck > 0.5; } }
 ];
 function Tutorial(props) {
@@ -1477,7 +1648,7 @@ function Tutorial(props) {
     }, 100);
     return function () { clearInterval(id); };
   }, [tracker]);
-  var all = idx >= STEPS.length, lean = clamp(snap.lean || 0, -1, 1);
+  var all = idx >= STEPS.length, lean = clamp((snap.lean || 0) / 0.25, -1, 1);
   useEffect(function () { if (props.onProgress) props.onProgress(all); }, [all]);
   var last = snap.last && performance.now() - snap.lastAt < 1500 ? snap.last : '';
   return h('div', { className: 'screen' },
@@ -1498,12 +1669,13 @@ function Tutorial(props) {
     h('div', { className: 'card' },
       h('div', { className: 'meter', 'aria-label': 'Lean' },
         h('div', { className: 'mid' }),
-        h('div', { className: 'th', style: { left: 50 - CFG.lean.on * 50 + '%' } }), h('div', { className: 'th', style: { left: 50 + CFG.lean.on * 50 + '%' } }),
+        h('div', { className: 'th', style: { left: 50 - (snap.thr || 6.5) / 25 * 50 + '%' } }), h('div', { className: 'th', style: { left: 50 + (snap.thr || 6.5) / 25 * 50 + '%' } }),
         h('div', { className: 'mk', style: { left: 50 + lean * 50 + '%' } })),
       h('div', { className: 'meterlbl' }, h('span', null, 'left'), h('span', null, 'centre'), h('span', null, 'right')),
       h('div', { className: 'prog', 'aria-label': 'Duck' }, h('i', { style: { width: (snap.duck || 0) * 100 + '%' } })),
       h('div', { className: 'meterlbl' }, h('span', null, 'standing'), h('span', null, 'ducking')),
       h('p', { className: 'sub' }, 'Bonus: bend your elbows, then snap an arm out. Punches and blocks show up next to the status light.')),
+    h('details', { className: 'dev', open: SETTINGS.dev }, h('summary', null, 'Tune dodge and punch sensitivity'), h(DevPanel, { tracker: tracker })),
     h('div', { className: 'row' },
       h('button', { className: 'btn ghost', onClick: props.onBack }, 'RECALIBRATE'),
       h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: props.onDone, disabled: !all }, all ? 'START MATCH' : 'DO ALL 5 MOVES'),
@@ -1520,13 +1692,42 @@ function CamStrip(props) {
     props.children);
 }
 
+function DevPanel(props) {
+  var snap = useSnap(props.tracker, 100), bs = useState(0), bump = bs[1];
+  function set(k, v) { SETTINGS[k] = v; saveSettings(); bump(function (n) { return n + 1; }); }
+  var A = props.tracker.engine.arms;
+  var bar = function (v, max, cls) { return h('div', { className: 'dbar ' + (cls || '') }, h('i', { style: { width: clamp(Math.abs(v) / max, 0, 1) * 100 + '%' } })); };
+  var row = function (l, v, b, key) { return h('div', { className: 'drow', key: key || l }, h('span', null, l), h('b', null, v), b || null); };
+  var slider = function (label, key, hint) {
+    return h('label', { className: 'dsl', key: key }, h('span', null, label + ' ' + SETTINGS[key].toFixed(2) + 'x'),
+      h('input', { type: 'range', min: 0.4, max: 2.5, step: 0.05, value: SETTINGS[key], onChange: function (e) { set(key, parseFloat(e.target.value)); } }), h('small', null, hint));
+  };
+  return h('div', { className: 'devpanel' },
+    row('Action', snap.act || '-'),
+    row('Head lean', (snap.leanPct || 0).toFixed(1) + ' % of SW', bar(snap.leanPct, 16, snap.leanPct < 0 ? 'l' : 'r')),
+    row('Shoulder movement', (snap.shPct || 0).toFixed(1) + ' % of SW', bar(snap.shPct, 16)),
+    row('Dodge threshold', (snap.thr || 0).toFixed(1) + ' %  (noise ' + (snap.noise || 0).toFixed(1) + ')'),
+    row('Punch confidence L', Math.round((snap.pcL || 0) * 100) + '%  ' + (snap.stL || ''), bar(snap.pcL, 1, 'p')),
+    row('Punch confidence R', Math.round((snap.pcR || 0) * 100) + '%  ' + (snap.stR || ''), bar(snap.pcR, 1, 'p')),
+    row('Wrist velocity L / R', (snap.vL || 0).toFixed(1) + ' / ' + (snap.vR || 0).toFixed(1) + ' SW/s'),
+    row('Last cues R', A.R.cues || '-'), row('Last cues L', A.L.cues || '-'),
+    row('Tracking FPS', snap.fps || 0),
+    slider('Dodge sensitivity', 'dodge', 'higher = a smaller lean registers and moves the boxer more'),
+    slider('Punch sensitivity', 'punch', 'higher = slower / shorter jabs count'),
+    h('div', { className: 'row' },
+      h('button', { className: 'btn ghost grow', onClick: function () { props.tracker.captureBaseline(); } }, 'RE-CENTRE NEUTRAL'),
+      h('button', { className: 'btn ghost grow', onClick: function () { set('anim', !SETTINGS.anim); }, 'aria-pressed': SETTINGS.anim }, SETTINGS.anim ? 'ANIM BLEND ON' : 'ANIM BLEND OFF')));
+}
+
 function Match(props) {
-  var cv = useRef(null), ms = useState(Sfx.muted), muted = ms[0], setMuted = ms[1];
+  var cv = useRef(null), ms = useState(Sfx.muted), muted = ms[0], setMuted = ms[1], ds = useState(SETTINGS.dev), dev = ds[0], setDev = ds[1];
   useEffect(function () {
     var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame(), raf = 0, last = performance.now(), dead = false;
     props.input.drainPunches();
+    // automatic neutral pose: re-capture just before the bell, while the player is settled
+    var neutralT = setTimeout(function () { var st = props.tracker && props.tracker.state; if (props.input === props.tracker && st && st.status === 'body' && st.motion < CFG.stillMax * 1.5) props.tracker.captureBaseline(); }, 2400);
     Sfx.init();
     function frame(now) {
       if (dead) return;
@@ -1537,11 +1738,12 @@ function Match(props) {
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
-    return function () { dead = true; cancelAnimationFrame(raf); };
+    return function () { dead = true; clearTimeout(neutralT); cancelAnimationFrame(raf); };
   }, []);
   var snd = h('button', { className: 'btn ghost', onClick: function () { Sfx.muted = !Sfx.muted; setMuted(Sfx.muted); }, 'aria-pressed': muted }, muted ? 'SOUND OFF' : 'SOUND ON');
   var quit = h('button', { className: 'btn ghost', onClick: props.onQuit }, 'QUIT');
-  var right = h('div', { className: 'info', style: { flex: 'none', alignItems: 'flex-end' } }, snd, quit);
+  var tune = props.debug ? null : h('button', { className: 'btn ghost', onClick: function () { SETTINGS.dev = !dev; setDev(!dev); }, 'aria-pressed': dev }, dev ? 'HIDE TUNE' : 'TUNE');
+  var right = h('div', { className: 'info', style: { flex: 'none', alignItems: 'flex-end' } }, snd, tune, quit);
   return h('div', { className: 'screen', style: { justifyContent: 'flex-start' } },
     h('div', { className: 'matchwrap' },
       h('canvas', { ref: cv, 'aria-label': 'Boxing match' }),
@@ -1551,7 +1753,8 @@ function Match(props) {
               h('span', { className: 'kbd' }, 'J'), ' / ', h('span', { className: 'kbd' }, 'K'), ' left / right punch · ',
               h('span', { className: 'kbd' }, '←'), ' ', h('span', { className: 'kbd' }, '→'), ' move · ', h('span', { className: 'kbd' }, '↓'), ' duck · ',
               h('span', { className: 'kbd' }, 'Space'), ' block'), right)
-        : h(CamStrip, { tracker: props.tracker }, right)));
+        : h(CamStrip, { tracker: props.tracker }, right),
+      dev && !props.debug ? h(DevPanel, { tracker: props.tracker }) : null));
 }
 
 function Result(props) {
@@ -1603,7 +1806,7 @@ function App() {
   return h(React.Fragment, null, body, cursorOn ? h(HandCursor, { tracker: tracker }) : null);
 }
 
-window.__MB = { GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
+window.__MB = { drawScene: drawScene, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
