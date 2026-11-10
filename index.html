@@ -140,6 +140,9 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .mst .vp { font-size: 9px; padding: 4px 6px; background: rgba(8, 6, 36, 0.7); }
 .mst .chip { font-size: 9px; padding: 4px 6px; }
 .fpsx { font: 700 9px/1 var(--body); color: var(--mute); background: rgba(8, 6, 36, 0.7); padding: 3px 6px; border-radius: 999px; }
+.mend { position: absolute; left: 12%; right: 12%; bottom: 6%; height: 10px; border-radius: 6px; background: rgba(255,255,255,.2); opacity: 0; transition: opacity .15s; overflow: hidden; }
+.mend i { display: block; height: 100%; width: 0; background: #4cf2a0; }
+.mhint { position: absolute; left: 6%; right: 6%; bottom: 1.8%; text-align: center; font-size: 12px; color: rgba(255,255,255,.75); text-shadow: 0 1px 3px #000; pointer-events: none; }
 .mbar { position: absolute; left: 3%; right: 3%; bottom: 1.6%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .btn.mb { font-size: 12px; padding: 14px 4px; border-radius: 12px; min-height: 56px; background: rgba(10, 13, 43, 0.82); color: #fff; box-shadow: none; border: 2px solid var(--line); letter-spacing: 0.03em; }
 .btn.mb.gold { background: var(--gold); color: #2a1d00; border-color: transparent; }
@@ -961,11 +964,12 @@ var KRig = (function () {
     var leanW = lean;
     rig.hips[0] += RIGHT[0] * (o.x || 0) * 0.25;                    // small lateral shift of the whole body
     rig.hips[1] -= duck * 0.2;
+    rig.hips[2] += cl(o.lunge || 0, 0, 1) * 0.16;                  // a punch steps the whole body a little toward the opponent
     rig.fk(0);
     var s;
     for (s = 0; s < 3; s++) {
-      var rz = leanW / 3 + (s === 2 ? roll : 0) * 1.0, rx = duck * 0.55 / 3 + idle / 3;
-      addWorldRot(rig, iSp[s], qmul(qaxis([0, 0, 1], rz), qaxis([1, 0, 0], rx)));
+      var rz = leanW / 3 + (s === 2 ? roll : 0) * 1.0, rx = duck * 0.55 / 3 + idle / 3, ry = (o.yaw || 0) / 3;
+      addWorldRot(rig, iSp[s], qmul(qmul(qaxis([0, 1, 0], ry), qaxis([0, 0, 1], rz)), qaxis([1, 0, 0], rx)));
       rig.fk(iSp[s]);
     }
     addWorldRot(rig, iNeck, qmul(qaxis([0, 0, 1], -leanW * 0.45 - roll * 0.5 + cl(o.head || 0, -0.6, 0.6) * 0.5 * mir), qaxis([1, 0, 0], -duck * 0.2)));
@@ -987,10 +991,10 @@ var KRig = (function () {
       var fx = wx - ex, fy = wy - ey, f2 = Math.hypot(fx, fy), fz = Math.sqrt(Math.max(0, LF * LF - f2 * f2)); fz = Math.max(fz, 0.28 * LF);
       var d1 = vadd(vadd(vmul(RIGHT, ex), vmul(UP, -ey)), vmul(FWD, uz));
       var d2 = vadd(vadd(vmul(RIGHT, fx), vmul(UP, -fy)), vmul(FWD, fz));
-      if (boost > 0) {                               // punch accent: extend a little further toward the opponent (never more than 40 percent)
-        var b = Math.min(boost, 1) * 0.4;
-        d1 = vnorm(vadd(vmul(vnorm(d1), 1 - b), vmul(vnorm(vadd(vmul(FWD, 1), vmul(RIGHT, ex > 0 ? 0.15 : -0.15))), b)));
-        d2 = vnorm(vadd(vmul(vnorm(d2), 1 - b), vmul(FWD, b)));
+      if (boost > 0) {                               // punch: the arm really reaches toward the opponent while the punch lasts, then hands control back to the tracked pose
+        var b = Math.min(boost, 1), T = vnorm(vadd(vadd(FWD, vmul(UP, 0.08)), vmul(RIGHT, -0.12 * gs)));
+        d1 = vnorm(vadd(vmul(vnorm(d1), 1 - b * 0.92), vmul(T, b * 0.92)));
+        d2 = vnorm(vadd(vmul(vnorm(d2), 1 - b), vmul(T, b)));
       }
       aim(rig, iA, iF, d1, 1); rig.fk(iA);
       aim(rig, iF, iH, d2, 1); rig.fk(iF);
@@ -1059,6 +1063,12 @@ K3.setView = function (v) {
 K3.nextView = function () { K3.setView(K3.view === 'back' ? 'front' : 'back'); return K3.view; };
 
 /* Translate the game's player state into KRig inputs. Live joints come first; accents only add. */
+function punchCurve(t) {            // 0..1 reach envelope of one punch, 0.36 s long: out in 0.1 s, hold 0.06 s, back in 0.2 s
+  if (t < 0 || t >= 0.36) return 0;
+  if (t < 0.1) { var u = t / 0.1; return 1 - (1 - u) * (1 - u); }
+  if (t < 0.16) return 1;
+  var v = (t - 0.16) / 0.2; return 1 - v * v * (3 - 2 * v);
+}
 function k3Opts(G, time) {
   var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [] };
   if (p.punch && p.punch !== K3.lastPunch) { K3.lastPunch = p.punch; K3.jab = { side: p.punch.side, t0: time }; K3.boost[p.punch.side] = time; }
@@ -1067,11 +1077,13 @@ function k3Opts(G, time) {
   K3.lastHurt = p.hurt;
   ['R', 'L'].forEach(function (s) {
     var a = p.arm[s], w = p.armW[s]; if (w < 0.005) return;
-    var bt = time - K3.boost[s], boost = bt >= 0 && bt < 0.26 ? Math.sin(bt / 0.26 * Math.PI) * 0.6 : 0;      // short, small extension accent after a detected punch
+    var bt = time - K3.boost[s], boost = punchCurve(bt);      // fast reach, short hold, smooth return
     o.arms[s] = { wx: a.wrx, wy: a.wry, ex: a.erx, ey: a.ery, w: w, boost: boost };
   });
+  var bR = punchCurve(time - K3.boost.R), bL = punchCurve(time - K3.boost.L);
+  o.yaw = 0.5 * (bR - bL); o.lunge = Math.max(bR, bL);      // shoulders turn into the punch and the body steps in
   var tt, ac;
-  if (K3.jab) { ac = rig.acc[K3.jab.side === 'L' ? 'jabL' : 'jabR']; tt = time - K3.jab.t0; if (tt >= 0 && tt < ac.dur) o.acc.push({ name: K3.jab.side === 'L' ? 'jabL' : 'jabR', t: tt, w: 0.45 * Math.sin(tt / ac.dur * Math.PI) }); else if (tt >= ac.dur) K3.jab = null; }
+  if (K3.jab) { ac = rig.acc[K3.jab.side === 'L' ? 'jabL' : 'jabR']; tt = time - K3.jab.t0; if (tt >= 0 && tt < ac.dur) o.acc.push({ name: K3.jab.side === 'L' ? 'jabL' : 'jabR', t: tt, w: 0.6 * Math.sin(tt / ac.dur * Math.PI) }); else if (tt >= ac.dur) K3.jab = null; }
   if (K3.hit) { ac = rig.acc.hit; tt = time - K3.hit.t0; if (tt >= 0 && tt < ac.dur) o.acc.push({ name: 'hit', t: tt, w: 0.8 * Math.min(1, tt / 0.05) * (1 - tt / ac.dur) }); else if (tt >= ac.dur) K3.hit = null; }
   if (p.block > 0.02) o.acc.push({ name: 'block', t: 0, w: p.block * 0.6 });
   return o;
@@ -1198,7 +1210,7 @@ function updateAI(G, dt, fx) {
 }
 function summarize(G) {
   var r = G.result || { outcome: 'draw', ko: false };
-  return { outcome: r.outcome, ko: r.ko, score: Math.round(G.score), hits: G.hits, swings: G.swings, dodges: G.dodges, blocks: G.blocks, taken: G.taken, timeLeft: Math.max(0, Math.ceil(G.time)), pHP: G.pHP, aHP: G.aHP };
+  return { outcome: r.outcome, ko: r.ko, score: Math.round(G.score), hits: G.hits, swings: G.swings, dodges: G.dodges, blocks: G.blocks, taken: G.taken, time: Math.round(G.time), timeLeft: 0, pHP: G.pHP, aHP: G.aHP };
 }
 
 function stepGame(G, dt, input, fx) {
@@ -2001,11 +2013,14 @@ function MStatus(props) {
 }
 function Match(props) {
   var cv = useRef(null), ms = useState(Sfx.muted), muted = ms[0], setMuted = ms[1], ds = useState(SETTINGS.dev), dev = ds[0], setDev = ds[1];
-  var vs = useState(K3.view), view = vs[0], setView = vs[1], resetRef = useRef(null);
+  var vs = useState(K3.view), view = vs[0], setView = vs[1], resetRef = useRef(null), endRef = useRef(null), DEVBAR = /[?&]dev=1/.test(location.search);
   useEffect(function () {
     var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var bg = makeBackground(dpr), G = createGame(), raf = 0, last = performance.now(), dead = false;
+    var bg = makeBackground(dpr), G = createGame(), raf = 0, last = performance.now(), dead = false, endT = 0, ended = false;
+    function finish() { if (ended) return; ended = true; props.onEnd(summarize(G)); }
+    function onKey(e) { if (e.key === 'Escape' || e.key === 'q' || e.key === 'Q') finish(); }
+    if (props.debug) window.addEventListener('keydown', onKey);
     props.input.drainPunches();
     resetRef.current = function () { G = createGame(); props.input.drainPunches(); Sfx.ding(); };           // training reset: health, stats and the opponent start over
     // automatic neutral pose: re-capture shortly after the session starts, while the player is settled
@@ -2016,41 +2031,44 @@ function Match(props) {
       var dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
       stepGame(G, dt, props.input, Sfx);
       drawScene(ctx, G, now / 1000, bg, true);
+      if (!props.debug) {                                  // finish gesture: both hands above the head, held for 1.5 s (punching or guarding never reaches it)
+        var u = props.tracker.getUpper(), up = u.R && u.L && u.R.wry < -1.3 && u.L.wry < -1.3;
+        endT = up ? endT + dt : Math.max(0, endT - dt * 2);
+        if (endRef.current) { endRef.current.style.opacity = endT > 0.05 ? '1' : '0'; endRef.current.firstChild.style.width = Math.min(100, endT / 1.5 * 100) + '%'; }
+        if (endT >= 1.5) finish();
+      }
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
-    return function () { dead = true; clearTimeout(neutralT); cancelAnimationFrame(raf); };
+    return function () { dead = true; clearTimeout(neutralT); cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); };
   }, []);
   var btn = function (label, fn, cls, pressed) { return h('button', { className: 'btn mb ' + (cls || ''), 'data-hand': '1', onClick: fn, 'aria-pressed': pressed }, label); };
   return h('div', { className: 'mfs' },
     h('div', { className: 'mwrap' },
       h('canvas', { ref: cv, className: 'mcv', 'aria-label': 'Boxing training with Khalid' }),
       props.debug
-        ? h('div', { className: 'mdbg' }, h('b', null, 'DEBUG KEYBOARD MODE. NO CAMERA TRACKING.'), h('br'), 'J / K punch · arrows move · down duck · Space block')
+        ? h('div', { className: 'mdbg' }, h('b', null, 'DEBUG KEYBOARD MODE. NO CAMERA TRACKING.'), h('br'), 'J / K punch · arrows move · down duck · Space block · Q finish')
         : h('div', { className: 'mpip' }, h(Preview, { tracker: props.tracker, fixed: true }), h(MStatus, { tracker: props.tracker })),
       dev && !props.debug ? h('div', { className: 'mdev' }, h(DevPanel, { tracker: props.tracker })) : null,
-      h('div', { className: 'mbar' },
+      h('div', { className: 'mend', ref: endRef }, h('i')),
+      DEVBAR ? h('div', { className: 'mbar' },
         btn('RESET', function () { resetRef.current && resetRef.current(); }, 'gold'),
         btn('VIEW: ' + VIEWS[view].label, function () { setView(K3.nextView()); }),
         props.debug ? null : btn(dev ? 'HIDE TUNE' : 'TUNE', function () { SETTINGS.dev = !dev; setDev(!dev); }, '', dev),
-        btn('MENU', props.onQuit))));
+        btn('MENU', props.onQuit)) : h('div', { className: 'mhint' }, props.debug ? 'Press Q to finish' : 'Finish: raise both hands above your head for 1.5 s')));
 }
 
 function Result(props) {
-  var r = props.result, title = r.outcome === 'win' ? (r.ko ? 'K.O. VICTORY!' : 'VICTORY!') : r.outcome === 'lose' ? (r.ko ? 'K.O.’D' : 'DEFEAT') : 'DRAW';
-  var acc = r.swings ? Math.round(r.hits / r.swings * 100) : 0;
+  var r = props.result, acc = r.swings ? Math.round(r.hits / r.swings * 100) : 0, mm = Math.floor(r.time / 60), ss = r.time % 60;
   var stat = function (l, v, cls) { return h('div', { className: 'stat ' + (cls || '') }, h('span', null, l), h('b', null, v)); };
   return h('div', { className: 'screen' },
-    h('h2', { className: 'result-title ' + r.outcome }, title),
-    h('p', { className: 'sub center' }, r.outcome === 'win' ? 'Bruno hit the canvas. Nice work.' : r.outcome === 'lose' ? 'Bruno took this round. Rematch?' : 'Dead even after 60 seconds.'),
+    h('h2', { className: 'result-title win' }, 'GOOD SESSION'),
     h('div', { className: 'stats' },
-      stat('Score', r.score, 'big'), stat('Punches landed', r.hits), stat('Accuracy', acc + '%'),
-      stat('Dodges', r.dodges), stat('Blocks', r.blocks), stat('Hits taken', r.taken), stat('Your HP', Math.ceil(r.pHP) + ' / 100')),
+      stat('Time', mm + ':' + (ss < 10 ? '0' : '') + ss, 'big'), stat('Punches landed', r.hits + ' / ' + r.swings), stat('Accuracy', acc + '%'),
+      stat('Dodges', r.dodges), stat('Blocks', r.blocks), stat('Hits taken', r.taken)),
     props.camOn ? h(HandHint, { tracker: props.tracker, text: 'Move your RIGHT hand to steer the cursor. Hold it over a button for a second to select.' }) : null,
     h('button', { className: 'btn gold', 'data-hand': '1', onClick: props.onAgain }, 'PLAY AGAIN'),
-    h('div', { className: 'row' },
-      props.debug ? null : h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onRecal }, 'RECALIBRATE'),
-      h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onHome }, 'MAIN MENU')));
+    h('button', { className: 'btn ghost', 'data-hand': '1', onClick: props.onHome }, 'MAIN MENU'));
 }
 
 function App() {
@@ -2071,7 +2089,7 @@ function App() {
   function camOff() { tracker.releaseCamera(); setCamOn(false); setCalibrated(false); }
   function play() { setRound(function (r) { return r + 1; }); setScreen('match'); }
   function start() { Sfx.init(); if (camOn && calibrated) play(); else if (camOn) setScreen('calibration'); else setScreen('permission'); }
-  var cursorOn = camOn && mode === 'camera' && (screen === 'start' || screen === 'result' || screen === 'match' || (screen === 'tutorial' && tutDone));
+  var cursorOn = camOn && mode === 'camera' && (screen === 'start' || screen === 'result' || (screen === 'match' && /[?&]dev=1/.test(location.search)) || (screen === 'tutorial' && tutDone));
   var body;
   if (screen === 'start') body = h(StartScreen, { tracker: tracker, camOn: camOn, k3: k3, onStart: start, onCamOff: camOff });
   else if (screen === 'permission') body = h(Permission, {
@@ -2081,8 +2099,8 @@ function App() {
   });
   else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); setTutDone(false); setScreen('tutorial'); }, onBack: home });
   else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, onDone: play, onProgress: setTutDone, onBack: function () { setScreen('calibration'); } });
-  else if (screen === 'match') body = h(Match, { key: round, tracker: tracker, input: input, debug: mode === 'debug', onQuit: home });
-  else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: play, onRecal: function () { setScreen('calibration'); }, onHome: home });
+  else if (screen === 'match') body = h(Match, { key: round, tracker: tracker, input: input, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); setScreen('result'); } });
+  else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: play, onHome: home });
   return h(React.Fragment, null, body, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' }) : null);
 }
 
