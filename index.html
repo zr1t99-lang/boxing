@@ -1,8 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Motion Boxing</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -64,7 +60,7 @@ h1, h2, h3, p { margin: 0; }
 .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 .how div { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 14px; padding: 10px; font-size: 13px; color: var(--mute); }
 .how b { display: block; font: 400 15px/1.2 var(--display); color: var(--ink); margin-bottom: 4px; letter-spacing: 0.04em; }
-.hero { width: 100%; max-width: 520px; aspect-ratio: 16 / 9; margin: 0 auto; display: block; border-radius: 20px; border: 2px solid var(--line); background: #14083a; }
+.hero { width: 100%; max-width: 300px; aspect-ratio: 3 / 4; margin: 0 auto; display: block; border-radius: 20px; border: 2px solid var(--line); background: #14083a; }
 
 .chip { display: inline-flex; align-items: center; gap: 8px; font: 700 13px/1 var(--body); letter-spacing: 0.05em; text-transform: uppercase; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.07); white-space: nowrap; }
 .chip::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--mute); }
@@ -113,8 +109,8 @@ details.dev summary { cursor: pointer; color: var(--ink); font-weight: 500; }
 details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 .kbd { display: inline-block; font: 500 12px/1 var(--body); padding: 3px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); border: 1px solid var(--line); color: var(--ink); }
 
-.matchwrap { position: relative; width: min(100%, calc((100vh - 24px) * 1.7778)); width: min(100%, calc((100dvh - 24px) * 1.7778)); margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
-.matchwrap canvas { width: 100%; aspect-ratio: 16 / 9; display: block; border-radius: 18px; border: 2px solid var(--line); background: #14083a; touch-action: none; }
+.matchwrap { width: min(100%, calc((100vh - 190px) * 0.75)); width: min(100%, calc((100dvh - 190px) * 0.75)); margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.matchwrap canvas { width: 100%; aspect-ratio: 3 / 4; display: block; border-radius: 18px; border: 2px solid var(--line); background: #14083a; touch-action: none; }
 .strip { display: flex; gap: 10px; align-items: stretch; }
 .strip .pip { width: 104px; flex: none; }
 .strip .pip .preview { aspect-ratio: auto; height: 78px; border-radius: 12px; }
@@ -134,18 +130,23 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .stat.big { grid-column: 1 / -1; text-align: center; }
 .stat.big b { font-size: 38px; color: var(--gold); }
 
-.rotate-hint { display: none; font-size: 13px; color: var(--mute); }
-@media (orientation: portrait) and (max-width: 700px) { .rotate-hint { display: block; } }
-@media (orientation: landscape) and (max-height: 700px) {
-  .matchwrap .strip { position: absolute; left: 8px; right: 8px; bottom: 8px; pointer-events: none; align-items: flex-end; }
-  .matchwrap .strip .pip, .matchwrap .strip .btn { pointer-events: auto; }
-  .matchwrap .strip .pip { width: 92px; }
-  .matchwrap .strip .pip .preview { height: 66px; }
-  .matchwrap .strip .info { flex: 1 1 0; justify-content: flex-end; }
-  .matchwrap .strip .btn.ghost { background: rgba(10, 13, 43, 0.75); padding: 8px 12px; font-size: 12px; }
-  .matchwrap .strip .dbg { background: rgba(10, 13, 43, 0.75); }
-  .matchwrap .chip { background: rgba(10, 13, 43, 0.75); }
-}
+.vps { display: flex; gap: 6px; flex-wrap: wrap; }
+.vp { display: inline-flex; align-items: center; font: 700 11px/1 var(--body); letter-spacing: 0.04em; padding: 6px 9px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); white-space: nowrap; }
+.vp::before { content: ""; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--red); }
+.vp.on { color: var(--mint); }
+.vp.on::before { background: var(--mint); }
+.vp.off { color: var(--red); border-color: rgba(255, 59, 79, 0.55); }
+.duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.duo .preview { aspect-ratio: 3 / 4; }
+.duo canvas { width: 100%; aspect-ratio: 3 / 4; display: block; border-radius: 16px; border: 2px solid var(--line); background: #14083a; }
+.pip-prev { width: 116px; flex: none; }
+.pip-prev .preview { aspect-ratio: auto; height: 88px; border-radius: 12px; }
+.hand-cursor { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+.hand-cursor svg { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; overflow: visible; }
+.hand-cursor .bg { fill: rgba(10, 13, 43, 0.35); stroke: rgba(255, 255, 255, 0.55); stroke-width: 4; }
+.hand-cursor .fg { fill: none; stroke: var(--cyan); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 150.8; stroke-dashoffset: 150.8; }
+.hand-cursor .dot { fill: var(--gold); stroke: #0a0d2b; stroke-width: 2; }
+.btn.hand-hover { outline: 4px solid var(--cyan); outline-offset: 4px; transform: scale(1.03); }
 @media (prefers-reduced-motion: reduce) { .btn { transition: none; } .prog > i { transition: none; } }
 </style>
 </head>
@@ -170,8 +171,8 @@ var CFG = {
   MODEL_URL: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
   smooth: 0.6,          // EMA weight of the newest landmark sample (higher = less lag, more jitter)
   visMin: 0.4,          // minimum landmark visibility to trust a joint
-  closeFrac: 0.30,      // shoulder width / frame width above this = "Move Back"
-  farFrac: 0.08,        // below this = "Move Closer"
+  closeFrac: 0.60,      // shoulder width / frame width above this = "Move Back" (phone held close is fine)
+  farFrac: 0.14,        // below this = "Move Closer"
   stillMax: 0.30,       // head movement (SW) allowed while calibrating
   punch: {
     windowMs: 280,      // look-back window for a punch
@@ -186,7 +187,7 @@ var CFG = {
   raiseAbove: 0.35,     // wrist above shoulder line by this much = hand raised
   lean: { on: 0.55, off: 0.32, frames: 3, adapt: 0.02 },
   block: { frames: 3, maxElbow: 120, nearHead: 1.3, belowNose: 0.15 },
-  pos: { scale: 200, dead: 0.1, max: 300, duckFull: 0.9 }   // head offset (SW) -> on-screen movement; head drop (SW) for a full duck
+  pos: { scale: 180, dead: 0.08, max: 170, duckFull: 0.7 }   // head offset (SW) -> on-screen movement; head drop (SW) for a full duck
 };
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -210,32 +211,37 @@ function mkErr(code, message, cause) { var e = new Error(message); e.code = code
    right shoulder (it appears on the image's left in an un-mirrored frame),
    so mapping by index keeps left/right anatomically correct.
    ====================================================================== */
-function newArm() { return { hist: [], armed: false, lastPunch: -1e9, ang: 0, reach: 0, raised: 0, vis: false, rel: { x: 0, y: -0.5 } }; }
+function newArm() { return { hist: [], armed: false, lastPunch: -1e9, ang: 0, reach: 0, raised: 0, vis: false, rel: { x: 0, y: -0.5 }, erel: { x: 0.1, y: 0.55 }, ext: 0 }; }
 
 function GestureEngine() {
   this.feat = {
     status: 'camera-ready', sw: 0, swFrac: 0, lean: 0, dodge: null, block: false,
-    rRaised: false, lRaised: false, motion: 1, angR: 0, angL: 0, duck: 0, last: '', lastAt: 0, punchCount: 0
+    rRaised: false, lRaised: false, motion: 1, angR: 0, angL: 0, duck: 0, roll: 0,
+    visRS: false, visLS: false, visRW: false, visLW: false, visNose: false,
+    last: '', lastAt: 0, punchCount: 0
   };
-  this.baseNoseX = null; this.baseNoseY = null;
+  this.baseNoseX = null; this.baseNoseY = null; this.baseRoll = 0;
   this.punches = [];
   this.reset();
 }
 GestureEngine.prototype.reset = function () {
   this.lm = null;
   this.arms = { R: newArm(), L: newArm() };
-  this.noseHist = [];
+  this.noseHist = []; this.rollHist = [];
   this.dodge = null; this.cR = 0; this.cL = 0; this.relC = 0;
   this.block = false; this.bOn = 0; this.bOff = 0;
   var f = this.feat;
-  f.status = 'camera-ready'; f.dodge = null; f.block = false; f.rRaised = false; f.lRaised = false; f.lean = 0; f.duck = 0;
+  f.status = 'camera-ready'; f.dodge = null; f.block = false; f.rRaised = false; f.lRaised = false; f.lean = 0; f.duck = 0; f.roll = 0;
+  f.visRS = f.visLS = f.visRW = f.visLW = f.visNose = false;
 };
 GestureEngine.prototype.captureBaseline = function () {
-  var n = this.noseHist.length;
+  var n = this.noseHist.length, i;
   if (n < 5) { if (this.lm) { this.baseNoseX = this.lm[0].X; this.baseNoseY = this.lm[0].Y; } return; }
-  var sx = 0, sy = 0, i;
+  var sx = 0, sy = 0, sr = 0;
   for (i = 0; i < n; i++) { sx += this.noseHist[i].X; sy += this.noseHist[i].Y; }
+  for (i = 0; i < this.rollHist.length; i++) sr += this.rollHist[i];
   this.baseNoseX = sx / n; this.baseNoseY = sy / n;
+  this.baseRoll = this.rollHist.length ? sr / this.rollHist.length : 0;
 };
 GestureEngine.prototype.drainPunches = function () { var q = this.punches; this.punches = []; return q; };
 GestureEngine.prototype._note = function (label, t, type, side) {
@@ -260,18 +266,19 @@ GestureEngine.prototype.update = function (raw, vw, vh, t) {
       o.v = r.visibility == null ? 1 : r.visibility;
     }
   }
+  // Upper body only: landmarks 0 (nose), 11/12 (shoulders), 13/14 (elbows), 15/16 (wrists). Hips and legs are never read.
   var RS = L[12], LS = L[11], nose = L[0];
   var sw = Math.hypot(RS.X - LS.X, RS.Y - LS.Y);
   f.sw = sw; f.swFrac = sw / vw;
   var inF = function (p) { return p.X >= 0 && p.X <= vw && p.Y >= 0 && p.Y <= vh; };
-  var parts = [0, 11, 12, 13, 14].every(function (j) { return L[j].v > CFG.visMin; }) && inF(nose) && inF(RS) && inF(LS);
+  var seen = function (p) { return p.v > CFG.visMin && inF(p); };
+  f.visNose = seen(nose); f.visRS = seen(RS); f.visLS = seen(LS); f.visRW = seen(L[16]); f.visLW = seen(L[15]);
   var status = 'body';
-  if (!parts || f.swFrac > CFG.closeFrac) status = 'move-back';
+  if (!(f.visNose && f.visRS && f.visLS) || f.swFrac > CFG.closeFrac) status = 'move-back';
   else if (f.swFrac < CFG.farFrac) status = 'move-closer';
   f.status = status;
   if (sw < 8) return f;
 
-  // head stillness, used by calibration
   this.noseHist.push({ X: nose.X, Y: nose.Y, t: t });
   if (this.noseHist.length > 30) this.noseHist.shift();
   var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
@@ -282,24 +289,31 @@ GestureEngine.prototype.update = function (raw, vw, vh, t) {
   }
   f.motion = this.noseHist.length < 12 ? 1 : Math.max(maxX - minX, maxY - minY) / sw;
 
-  // ---- arms: punches over several consecutive frames ----
+  // shoulder roll: how far the shoulder line is tilted (upper-body lean), relative to the calibrated posture
+  var rawRoll = Math.atan2(RS.Y - LS.Y, RS.X - LS.X);
+  this.rollHist.push(rawRoll); if (this.rollHist.length > 30) this.rollHist.shift();
+  f.roll = rawRoll - this.baseRoll;
+
+  // ---- arms: continuous pose for retargeting + punches over several frames ----
   var P = CFG.punch, sides = ['R', 'L'], si;
   for (si = 0; si < 2; si++) {
     var s = sides[si];
     var idx = s === 'R' ? [12, 14, 16] : [11, 13, 15];
     var S = L[idx[0]], E = L[idx[1]], Wr = L[idx[2]];
     var a = this.arms[s];
-    a.vis = E.v > CFG.visMin && Wr.v > CFG.visMin;
+    a.vis = E.v > CFG.visMin && (s === 'R' ? f.visRW : f.visLW);
     if (!a.vis) { a.hist.length = 0; a.armed = false; continue; }
     var ang = angleAt(E, S, Wr);
     var reach = dist(Wr, S) / sw;
     var zr = (S.Z - Wr.Z) / sw;
     a.ang = ang; a.reach = reach; a.raised = (S.Y - Wr.Y) / sw;
     a.rel.x = (Wr.X - S.X) / sw; a.rel.y = (Wr.Y - S.Y) / sw;
+    a.erel.x = (E.X - S.X) / sw; a.erel.y = (E.Y - S.Y) / sw;
+    a.ext = clamp((ang - 100) / 70, 0, 1);
     a.hist.push({ t: t, ang: ang, reach: reach, zr: zr, X: Wr.X, Y: Wr.Y });
     while (a.hist.length && t - a.hist[0].t > P.windowMs + 150) a.hist.shift();
 
-    if (!a.armed && ang < P.rearmAng) a.armed = true;            // reset threshold: arm must be bent again
+    if (!a.armed && ang < P.rearmAng) a.armed = true;
     if (a.armed && t - a.lastPunch > P.cooldown) {
       var win = [], j;
       for (j = 0; j < a.hist.length; j++) if (t - a.hist[j].t <= P.windowMs) win.push(a.hist[j]);
@@ -315,9 +329,9 @@ GestureEngine.prototype.update = function (raw, vw, vh, t) {
         var rise = ang - minAng, rr_ = reach - minReach, dz = zr - minZ;
         var speed = Math.hypot(Wr.X - first.X, Wr.Y - first.Y) / sw / dt;
         var up = win[n - 1].ang >= win[n - 3].ang - 2 || win[n - 1].reach >= win[n - 3].reach;
-        var A = ang > P.extAng && rise > P.riseAng;                       // elbow snaps straight
-        var B = rr_ > P.reachRise && ang > 120 && speed > P.minSpeed;     // wrist shoots away from shoulder
-        var C = dz > P.zRise && ang > 125 && rise > 15;                   // wrist comes toward camera
+        var A = ang > P.extAng && rise > P.riseAng;
+        var B = rr_ > P.reachRise && ang > 120 && speed > P.minSpeed;
+        var C = dz > P.zRise && ang > 125 && rise > 15;
         if (up && (A || B || C)) {
           a.armed = false; a.lastPunch = t;
           this._note(s === 'R' ? 'RIGHT PUNCH' : 'LEFT PUNCH', t, 'punch', s);
@@ -328,22 +342,23 @@ GestureEngine.prototype.update = function (raw, vw, vh, t) {
   f.angR = this.arms.R.ang; f.angL = this.arms.L.ang;
   f.rRaised = this.arms.R.vis && this.arms.R.raised > CFG.raiseAbove;
   f.lRaised = this.arms.L.vis && this.arms.L.raised > CFG.raiseAbove;
+  if (f.status === 'body' && !(this.arms.R.vis && this.arms.L.vis)) f.status = 'hands-missing';
 
-  // ---- lean (dodge): head displacement from the calibrated baseline ----
+  // ---- head position: sideways lean/move and duck, relative to the calibrated baseline ----
   if (this.baseNoseX == null) this.baseNoseX = nose.X;
   var ld = (nose.X - this.baseNoseX) / sw;       // + = player's right
   f.lean = ld;
   if (this.baseNoseY == null) this.baseNoseY = nose.Y;
-  var dyn = (nose.Y - this.baseNoseY) / sw;        // + = head lower than baseline (ducking)
+  var dyn = (nose.Y - this.baseNoseY) / sw;
   f.duck = clamp(dyn / CFG.pos.duckFull, 0, 1);
   if (Math.abs(dyn) < 0.2) this.baseNoseY += (nose.Y - this.baseNoseY) * CFG.lean.adapt;
   var LN = CFG.lean;
   if (this.dodge === null) {
     this.cR = ld > LN.on ? this.cR + 1 : 0;
     this.cL = ld < -LN.on ? this.cL + 1 : 0;
-    if (this.cR >= LN.frames) { this.dodge = 'R'; this._note('DODGE RIGHT', t, 'dodge'); }
-    else if (this.cL >= LN.frames) { this.dodge = 'L'; this._note('DODGE LEFT', t, 'dodge'); }
-    if (Math.abs(ld) < 0.28) this.baseNoseX += (nose.X - this.baseNoseX) * LN.adapt;   // slow re-centering
+    if (this.cR >= LN.frames) { this.dodge = 'R'; this._note('LEAN RIGHT', t, 'dodge'); }
+    else if (this.cL >= LN.frames) { this.dodge = 'L'; this._note('LEAN LEFT', t, 'dodge'); }
+    if (Math.abs(ld) < 0.28) this.baseNoseX += (nose.X - this.baseNoseX) * LN.adapt;
   } else {
     var gone = this.dodge === 'R' ? ld < LN.off : ld > -LN.off;
     this.relC = gone ? this.relC + 1 : 0;
@@ -407,10 +422,26 @@ Tracker.prototype.captureBaseline = function () { this.engine.captureBaseline();
 Tracker.prototype.drainPunches = function () { return this.engine.drainPunches(); };
 Tracker.prototype.getDodge = function () { return this.engine.feat.dodge; };
 Tracker.prototype.isBlocking = function () { return this.engine.feat.block; };
-Tracker.prototype.getArmRel = function (side) { var a = this.engine.arms[side]; return a.vis ? a.rel : null; };
-Tracker.prototype.getPos = function () {
-  var f = this.engine.feat, P = CFG.pos, l = Math.abs(f.lean) < P.dead ? 0 : f.lean - (f.lean < 0 ? -P.dead : P.dead);
-  return { x: clamp(l * P.scale, -P.max, P.max), duck: f.duck < 0.1 ? 0 : f.duck };
+/* Continuous upper-body pose for the avatar. Arm values are in shoulder-widths, relative to the same-side shoulder;
+   "out" is away from the body, "up" is image-down-positive (so negative = hand above the shoulder). null = not visible. */
+Tracker.prototype.getUpper = function () {
+  var e = this.engine, f = e.feat, P = CFG.pos;
+  var l = Math.abs(f.lean) < P.dead ? 0 : f.lean - (f.lean < 0 ? -P.dead : P.dead);
+  var tracking = f.visRS && f.visLS;
+  var arm = function (a, sg) { return tracking && a.vis ? { out: a.rel.x * sg, up: a.rel.y, eout: a.erel.x * sg, eup: a.erel.y, ext: a.ext } : null; };
+  return {
+    x: tracking ? clamp(l * P.scale, -P.max, P.max) : 0,
+    duck: tracking && f.duck >= 0.1 ? f.duck : 0,
+    roll: tracking ? f.roll : 0,
+    R: arm(e.arms.R, 1), L: arm(e.arms.L, -1),
+    vis: { ls: f.visLS, rs: f.visRS, lw: f.visLW, rw: f.visRW, shoulders: f.visLS && f.visRS, all: f.visLS && f.visRS && f.visLW && f.visRW }
+  };
+};
+/* Kinect-style cursor: the right hand relative to the right shoulder, mapped onto the screen. */
+Tracker.prototype.getCursor = function () {
+  var e = this.engine, f = e.feat, a = e.arms.R;
+  if (!(a.vis && f.visRS && f.visLS)) return { valid: false, nx: 0.5, ny: 0.5 };
+  return { valid: true, nx: clamp(0.5 + (a.rel.x - 0.2) / 2.2, 0, 1), ny: clamp(0.5 + (a.rel.y + 0.5) / 2.0, 0, 1) };
 };
 
 Tracker.prototype.startCamera = async function () {
@@ -424,7 +455,7 @@ Tracker.prototype.startCamera = async function () {
   var stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
+      video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 360 }, frameRate: { ideal: 30 } },
       audio: false
     });
   } catch (e) { throw mapCamError(e); }
@@ -539,10 +570,10 @@ Tracker.prototype._drawOverlay = function () {
     if (L[a].v < 0.3 || L[b].v < 0.3) return;
     c.strokeStyle = col; c.beginPath(); c.moveTo(L[a].X, L[a].Y); c.lineTo(L[b].X, L[b].Y); c.stroke();
   }
-  seg(11, 12, base); seg(11, 23, base); seg(12, 24, base); seg(23, 24, base);
+  seg(11, 12, base);
   seg(12, 14, '#3be8ff'); seg(14, 16, '#3be8ff');   // player's RIGHT arm
   seg(11, 13, '#ffc42e'); seg(13, 15, '#ffc42e');   // player's LEFT arm
-  var pts = [0, 11, 12, 13, 14, 15, 16, 23, 24], i;
+  var pts = [0, 11, 12, 13, 14, 15, 16], i;
   for (i = 0; i < pts.length; i++) {
     var p = L[pts[i]]; if (p.v < 0.3) continue;
     c.fillStyle = '#fff'; c.beginPath(); c.arc(p.X, p.Y, lw * 1.2, 0, 6.2832); c.fill();
@@ -588,10 +619,11 @@ function DebugInput() { this.keys = {}; this.queue = []; var self = this;
 DebugInput.prototype.attach = function () { window.addEventListener('keydown', this._kd); window.addEventListener('keyup', this._ku); };
 DebugInput.prototype.detach = function () { window.removeEventListener('keydown', this._kd); window.removeEventListener('keyup', this._ku); this.keys = {}; this.queue = []; };
 DebugInput.prototype.drainPunches = function () { var q = this.queue; this.queue = []; return q; };
-DebugInput.prototype.getDodge = function () { var k = this.keys; return (k.ArrowLeft || k.a) ? 'L' : (k.ArrowRight || k.d) ? 'R' : null; };
 DebugInput.prototype.isBlocking = function () { return !!(this.keys[' '] || this.keys.b); };
-DebugInput.prototype.getPos = function () { var k = this.keys; return { x: (k.ArrowLeft || k.a) ? -240 : (k.ArrowRight || k.d) ? 240 : 0, duck: (k.ArrowDown || k.s) ? 1 : 0 }; };
-DebugInput.prototype.getArmRel = function () { return null; };
+DebugInput.prototype.getUpper = function () {
+  var k = this.keys;
+  return { x: (k.ArrowLeft || k.a) ? -150 : (k.ArrowRight || k.d) ? 150 : 0, duck: (k.ArrowDown || k.s) ? 1 : 0, roll: 0, R: null, L: null, vis: null };
+};
 
 /* ======================================================================
    SOUND (WebAudio, synthesized; no assets)
@@ -635,8 +667,9 @@ function nop() {}
 /* ======================================================================
    GAME STATE + RULES
    ====================================================================== */
-var W = 800, H = 450;
-var SS = 0.83, STX = 400 - 240 * SS, STY = -70;   // figure space (480x640) -> screen
+var W = 480, H = 640;
+var SS = 1, STX = 0, STY = 0;   // figure space equals screen space (portrait)
+var ARM0 = { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0 };   // neutral boxing guard
 
 function createGame() {
   return {
@@ -644,8 +677,10 @@ function createGame() {
     pHP: 100, aHP: 100, pShow: 100, aShow: 100, score: 0, combo: 0, comboT: 0,
     hits: 0, swings: 0, dodges: 0, blocks: 0, taken: 0,
     shake: 0, flash: 0, hitstop: 0, particles: [], popups: [],
-    p: { punch: null, cd: { R: 0, L: 0 }, cdAny: 0, x: 0, duck: 0, block: 0, blocking: false, hurt: 0, happy: 0,
-         fol: { R: { x: 0, y: 0 }, L: { x: 0, y: 0 } } },
+    vis: null, lostT: 0, paused: false,
+    p: { punch: null, cd: { R: 0, L: 0 }, cdAny: 0, x: 0, duck: 0, roll: 0, block: 0, blocking: false, hurt: 0, happy: 0,
+         arm: { R: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0 }, L: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0 } },
+         tracked: { R: false, L: false } },
     a: { state: 'idle', stateT: 0, timer: 1.4, side: 'right', hurt: 0, hurtDir: 1, happy: 0, guardCool: 0, struck: false,
          dodgedRecover: false, lastGlove: null, atk: null, locked: false, trackX: 0 },
     endT: 0, endLabel: '', result: null, done: false, fightT: 0
@@ -662,11 +697,11 @@ function setA(G, state, timer) { var a = G.a; a.state = state; a.stateT = 0; a.t
 
 /* AI attack zones in figure space. The player body is a hitbox; an attack only lands if the zone overlaps it. */
 var ATK = {
-  straight: { type: 'straight', label: 'SIDESTEP or DUCK', hw: 70,  y0: 380, y1: 515 },   // narrow, head height
-  hook:     { type: 'hook',     label: 'DUCK!',            hw: 240, y0: 380, y1: 515 },   // too wide to sidestep
-  body:     { type: 'body',     label: 'SIDESTEP!',        hw: 75,  y0: 560, y1: 730 }    // low, ducking does not help
+  straight: { type: 'straight', label: 'SIDESTEP or DUCK', hw: 50,  y0: 380, y1: 515 },   // narrow, head height
+  hook:     { type: 'hook',     label: 'DUCK!',            hw: 175, y0: 380, y1: 515 },   // too wide to sidestep
+  body:     { type: 'body',     label: 'SIDESTEP!',        hw: 55,  y0: 560, y1: 730 }    // low, ducking does not help
 };
-var BODY_HW = 62;
+var BODY_HW = 55;
 function playerBox(p) { return { x0: 240 + p.x - BODY_HW, x1: 240 + p.x + BODY_HW, y0: 460 + p.duck * 105, y1: 760 }; }
 function zoneHits(z, b) { return !(b.x1 < z.zx - z.hw || b.x0 > z.zx + z.hw || b.y1 < z.y0 || b.y0 > z.y1); }
 
@@ -741,14 +776,18 @@ function stepGame(G, dt, input, fx) {
   G.comboT -= dt; if (G.comboT <= 0) G.combo = 0;
   G.pShow += (G.pHP - G.pShow) * Math.min(1, dt * 2.5); G.aShow += (G.aHP - G.aShow) * Math.min(1, dt * 2.5);
 
-  var punches = input.drainPunches(), pos = input.getPos(), blocking = input.isBlocking();
-  p.x += (pos.x - p.x) * Math.min(1, dt * 14); p.duck += (pos.duck - p.duck) * Math.min(1, dt * 14);
+  var punches = input.drainPunches(), ub = input.getUpper(), blocking = input.isBlocking();
+  var k14 = Math.min(1, dt * 14), k20 = Math.min(1, dt * 20);
+  p.x += (ub.x - p.x) * k14; p.duck += (ub.duck - p.duck) * k14; p.roll += (ub.roll - p.roll) * k14;
   p.blocking = blocking; p.block += ((blocking ? 1 : 0) - p.block) * Math.min(1, dt * 16);
-  ['R', 'L'].forEach(function (s) {
-    var rel = input.getArmRel(s), tx = 0, ty = 0;
-    if (rel) { tx = clamp(rel.x * 30, -35, 35); ty = clamp((rel.y + 0.5) * 40, -40, 50); }
-    p.fol[s].x += (tx - p.fol[s].x) * Math.min(1, dt * 12); p.fol[s].y += (ty - p.fol[s].y) * Math.min(1, dt * 12);
+  ['R', 'L'].forEach(function (s) {          // smooth joint retargeting; a hand that is not visible relaxes to guard
+    var a = p.arm[s], t = ub[s], T = t || ARM0;
+    p.tracked[s] = !!t;
+    a.out += (T.out - a.out) * k20; a.up += (T.up - a.up) * k20; a.eout += (T.eout - a.eout) * k20; a.eup += (T.eup - a.eup) * k20; a.ext += (T.ext - a.ext) * k20;
   });
+  G.vis = ub.vis;
+  if (ub.vis && !ub.vis.shoulders) G.lostT += dt; else G.lostT = 0;
+  G.paused = G.lostT > 0.8;                  // body lost: the clock and the AI stop instead of pretending
 
   for (i = G.particles.length - 1; i >= 0; i--) {
     var q = G.particles[i]; q.life -= dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 520 * dt; q.rot += dt * 8;
@@ -756,6 +795,7 @@ function stepGame(G, dt, input, fx) {
   }
   for (i = G.popups.length - 1; i >= 0; i--) { var pp = G.popups[i]; pp.life -= dt; pp.y -= 38 * dt; if (pp.life <= 0) G.popups.splice(i, 1); }
 
+  if (G.paused && G.phase !== 'ended') return;
   if (G.phase === 'countdown') {
     G.cd -= dt;
     var idx = Math.min(3, Math.floor((3.2 - G.cd) / 0.8));
@@ -807,45 +847,45 @@ var FONT = '"Bungee","Impact","Arial Black",sans-serif';
 function makeBackground(dpr) {
   var c = document.createElement('canvas'); c.width = W * dpr; c.height = H * dpr;
   var x = c.getContext('2d'); x.scale(dpr, dpr);
-  var g = x.createLinearGradient(0, 0, 0, 260); g.addColorStop(0, '#12073a'); g.addColorStop(1, '#3a1466');
+  var g = x.createLinearGradient(0, 0, 0, 380); g.addColorStop(0, '#12073a'); g.addColorStop(1, '#3a1466');
   x.fillStyle = g; x.fillRect(0, 0, W, H);
   var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
   var shirts = ['#ff6b81', '#ffc42e', '#3be8ff', '#9b7bff', '#4cf2a0', '#ff9f43'], row, i;
-  for (row = 0; row < 7; row++) {
-    var y = 30 + row * 24;
-    for (i = 0; i < 44; i++) {
+  for (row = 0; row < 8; row++) {
+    var y = 120 + row * 26;
+    for (i = 0; i < 27; i++) {
       var cx = (i + (row % 2 ? 0.5 : 0)) * 19 + rnd() * 6;
       x.globalAlpha = 0.55 + row * 0.05;
-      x.fillStyle = shirts[Math.floor(rnd() * shirts.length)]; x.beginPath(); x.arc(cx, y + 19, 11, Math.PI, 0); x.fill();
-      x.fillStyle = '#2b1556'; x.beginPath(); x.arc(cx, y + 4, 7.5, 0, 6.2832); x.fill();
+      x.fillStyle = shirts[Math.floor(rnd() * shirts.length)]; x.beginPath(); x.arc(cx, y + 20, 12, Math.PI, 0); x.fill();
+      x.fillStyle = '#2b1556'; x.beginPath(); x.arc(cx, y + 4, 8, 0, 6.2832); x.fill();
     }
   }
   x.globalAlpha = 1;
-  var dk = x.createLinearGradient(0, 20, 0, 250); dk.addColorStop(0, 'rgba(10,5,40,.75)'); dk.addColorStop(1, 'rgba(10,5,40,.1)');
-  x.fillStyle = dk; x.fillRect(0, 20, W, 230);
+  var dk = x.createLinearGradient(0, 100, 0, 372); dk.addColorStop(0, 'rgba(10,5,40,.75)'); dk.addColorStop(1, 'rgba(10,5,40,.1)');
+  x.fillStyle = dk; x.fillRect(0, 100, W, 272);
   x.globalCompositeOperation = 'lighter';
-  [150, 400, 650].forEach(function (sx) {
-    var sg = x.createLinearGradient(sx, 0, sx, 320); sg.addColorStop(0, 'rgba(255,255,255,.22)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
-    x.fillStyle = sg; x.beginPath(); x.moveTo(sx - 12, 0); x.lineTo(sx + 12, 0); x.lineTo(sx + 100, 320); x.lineTo(sx - 100, 320); x.closePath(); x.fill();
+  [90, 240, 390].forEach(function (sx) {
+    var sg = x.createLinearGradient(sx, 0, sx, 400); sg.addColorStop(0, 'rgba(255,255,255,.22)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = sg; x.beginPath(); x.moveTo(sx - 12, 0); x.lineTo(sx + 12, 0); x.lineTo(sx + 90, 400); x.lineTo(sx - 90, 400); x.closePath(); x.fill();
   });
   x.globalCompositeOperation = 'source-over';
-  var fg = x.createLinearGradient(0, 250, 0, 450); fg.addColorStop(0, '#2e4cf0'); fg.addColorStop(1, '#1a2a9c');
-  x.fillStyle = '#e9ecff'; x.beginPath(); x.moveTo(112, 238); x.lineTo(688, 238); x.lineTo(850, 450); x.lineTo(-50, 450); x.closePath(); x.fill();
-  x.fillStyle = fg; x.beginPath(); x.moveTo(120, 250); x.lineTo(680, 250); x.lineTo(836, 450); x.lineTo(-36, 450); x.closePath(); x.fill();
-  x.strokeStyle = 'rgba(255,255,255,.22)'; x.lineWidth = 3; x.beginPath(); x.ellipse(400, 352, 290, 52, 0, 0, 6.2832); x.stroke();
-  x.fillStyle = 'rgba(255,196,46,.28)'; x.beginPath(); x.ellipse(400, 352, 96, 20, 0, 0, 6.2832); x.fill();
+  var fg = x.createLinearGradient(0, 372, 0, 640); fg.addColorStop(0, '#2e4cf0'); fg.addColorStop(1, '#1a2a9c');
+  x.fillStyle = '#e9ecff'; x.beginPath(); x.moveTo(52, 362); x.lineTo(428, 362); x.lineTo(520, 640); x.lineTo(-40, 640); x.closePath(); x.fill();
+  x.fillStyle = fg; x.beginPath(); x.moveTo(58, 376); x.lineTo(422, 376); x.lineTo(504, 640); x.lineTo(-24, 640); x.closePath(); x.fill();
+  x.strokeStyle = 'rgba(255,255,255,.22)'; x.lineWidth = 3; x.beginPath(); x.ellipse(240, 520, 170, 46, 0, 0, 6.2832); x.stroke();
+  x.fillStyle = 'rgba(255,196,46,.28)'; x.beginPath(); x.ellipse(240, 520, 60, 16, 0, 0, 6.2832); x.fill();
   var ropes = ['#ff3b4f', '#f3f5ff', '#2f6bff'];
-  [96, 704].forEach(function (px, side) {
-    x.fillStyle = '#1b1f4d'; rr(x, px - 9, 150, 18, 128, 6); x.fill();
-    x.fillStyle = side ? '#2f6bff' : '#ff3b4f'; rr(x, px - 13, 178, 26, 50, 8); x.fill();
+  [34, 446].forEach(function (px, side) {
+    x.fillStyle = '#1b1f4d'; rr(x, px - 9, 262, 18, 128, 6); x.fill();
+    x.fillStyle = side ? '#2f6bff' : '#ff3b4f'; rr(x, px - 13, 290, 26, 54, 8); x.fill();
   });
   ropes.forEach(function (col, r) {
-    var ry = 186 + r * 24;
+    var ry = 296 + r * 28;
     x.strokeStyle = col; x.lineWidth = 6; x.lineCap = 'round';
-    x.beginPath(); x.moveTo(96, ry); x.lineTo(704, ry); x.stroke();
+    x.beginPath(); x.moveTo(34, ry); x.lineTo(446, ry); x.stroke();
     x.lineWidth = 7;
-    x.beginPath(); x.moveTo(96, ry + 4); x.lineTo(-60, ry + 170 + r * 30); x.stroke();
-    x.beginPath(); x.moveTo(704, ry + 4); x.lineTo(860, ry + 170 + r * 30); x.stroke();
+    x.beginPath(); x.moveTo(34, ry + 4); x.lineTo(-50, ry + 190 + r * 40); x.stroke();
+    x.beginPath(); x.moveTo(446, ry + 4); x.lineTo(530, ry + 190 + r * 40); x.stroke();
   });
   return c;
 }
@@ -961,11 +1001,15 @@ function drawOpponent(ctx, G, time) {
   });
 }
 
+function arm2(ctx, sx, sy, ex, ey, gx, gy, w, col) {
+  ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(gx, gy); ctx.stroke();
+}
 function drawPlayer(ctx, G, time) {
   var p = G.p;
   var jolt = p.hurt > 0 ? Math.sin(p.hurt * 70) * 7 * (p.hurt / 0.45) : 0;
   var baseX = 240 + p.x + jolt, dip = (p.hurt > 0 ? 14 * (p.hurt / 0.45) : 0) + p.duck * 110, breathe = Math.sin(time * 3) * 2;
-  var tilt = clamp(p.x / 300, -1, 1) * 0.14;
+  var tilt = clamp(p.roll * 1.3 + (p.x / 170) * 0.1, -0.45, 0.45);      // shoulder roll drives the body lean
   ctx.save(); ctx.translate(baseX, 640); ctx.rotate(tilt); ctx.translate(0, -640 + dip + breathe);
   var g = ctx.createLinearGradient(0, 574, 0, 700); g.addColorStop(0, '#3556ff'); g.addColorStop(1, '#1b2fa0');
   ctx.fillStyle = g; rr(ctx, -122, 574, 244, 230, 64); ctx.fill();
@@ -981,21 +1025,27 @@ function drawPlayer(ctx, G, time) {
   ctx.restore();
 
   ['L', 'R'].forEach(function (side) {
-    var sg = side === 'R' ? 1 : -1, f = p.fol[side];
-    var gx = baseX + sg * (108 + f.x * 0.6), gy = 510 + f.y + dip, gr = 40, aw = 34;
-    var bl = p.block;
+    var sg = side === 'R' ? 1 : -1, a = p.arm[side], tr = p.tracked[side];
+    // wrist and elbow of the avatar follow the player's real wrist and elbow, proportionally
+    var gx = baseX + sg * (108 + clamp(a.out, -0.7, 2.0) * 120);
+    var gy = clamp(510 + dip + (a.up + 0.5) * 140, 330, 650);
+    var ex = baseX + sg * (100 + clamp(a.eout, -0.6, 1.5) * 80), ey = 604 + dip + clamp(a.eup, -0.6, 1.1) * 60;
+    var gr = 40, aw = 34, bl = p.block * (tr ? 0.4 : 1);
     gx = lerp(gx, baseX + sg * 32, bl); gy = lerp(gy, 500 + dip, bl); gr = lerp(gr, 47, bl);
+    var tx = 240 + sg * 26, ty = 292;
+    var e = a.ext * 0.55;                    // arm straightening pushes the glove toward the opponent
     var pu = p.punch;
     if (pu && pu.side === side) {
-      var t = pu.t, e = t < 0.09 ? easeOut(t / 0.09) : Math.max(0, 1 - (t - 0.09) / 0.21);
-      var tx = 240 + sg * 26, ty = 292;
-      if (e > 0.25) {
-        for (var k = 1; k <= 3; k++) { var te = e - k * 0.12; if (te < 0) break; ctx.globalAlpha = 0.18 / k; circ(ctx, lerp(gx, tx, te), lerp(gy, ty, te), lerp(gr, 24, te), '#6f8cff'); }
+      var t = pu.t, pe = t < 0.09 ? easeOut(t / 0.09) : Math.max(0, 1 - (t - 0.09) / 0.21);
+      if (pe > 0.25) {
+        for (var k = 1; k <= 3; k++) { var te = pe - k * 0.12; if (te < 0) break; ctx.globalAlpha = 0.18 / k; circ(ctx, lerp(gx, tx, te), lerp(gy, ty, te), lerp(gr, 24, te), '#6f8cff'); }
         ctx.globalAlpha = 1;
       }
-      gx = lerp(gx, tx, e); gy = lerp(gy, ty, e); gr = lerp(gr, 24, e); aw = lerp(34, 20, e);
+      e = Math.max(e, pe);
     }
-    arm(ctx, baseX + sg * 100, 604 + dip, gx, gy, aw, '#f7c9a0');
+    gx = lerp(gx, tx, e); gy = lerp(gy, ty, e); gr = lerp(gr, 24, e); aw = lerp(34, 20, e);
+    ex = lerp(ex, (baseX + sg * 100 + tx) / 2, e); ey = lerp(ey, (604 + dip + ty) / 2 + 20, e);
+    arm2(ctx, baseX + sg * 100, 604 + dip, ex, ey, gx, gy, aw, '#f7c9a0');
     glove(ctx, gx, gy, gr, '#1f3fd1', '#7a95ff', false);
   });
 }
@@ -1053,39 +1103,57 @@ function drawBar(ctx, x, w, hp, show, anchorRight) {
   ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2; rr(ctx, x - 3, 21, w + 6, 26, 10); ctx.stroke();
 }
 function drawHUD(ctx, G, time) {
-  var hg = ctx.createLinearGradient(0, 0, 0, 100); hg.addColorStop(0, 'rgba(8,6,36,.85)'); hg.addColorStop(1, 'rgba(8,6,36,0)');
-  ctx.fillStyle = hg; ctx.fillRect(0, 0, W, 100);
-  drawBar(ctx, 84, 250, G.pHP, G.pShow, false); drawBar(ctx, 466, 250, G.aHP, G.aShow, true);
+  var hg = ctx.createLinearGradient(0, 0, 0, 120); hg.addColorStop(0, 'rgba(8,6,36,.85)'); hg.addColorStop(1, 'rgba(8,6,36,0)');
+  ctx.fillStyle = hg; ctx.fillRect(0, 0, W, 120);
+  drawBar(ctx, 66, 142, G.pHP, G.pShow, false); drawBar(ctx, 272, 142, G.aHP, G.aShow, true);
   ctx.font = '12px ' + FONT; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#f3f5ff';
-  ctx.textAlign = 'left'; ctx.fillText('YOU', 84, 17); ctx.textAlign = 'right'; ctx.fillText('BRUNO', 716, 17);
-  ctx.font = '14px ' + FONT; ctx.fillStyle = '#0b0d2e'; ctx.textAlign = 'left'; ctx.fillText(Math.ceil(G.pHP), 92, 40); ctx.textAlign = 'right'; ctx.fillText(Math.ceil(G.aHP), 708, 40);
-  [[40, 'player', G.p.hurt > 0 ? 'hurt' : G.p.blocking ? 'focus' : G.p.happy > 0 ? 'happy' : 'normal', '#3556ff'], [760, 'ai', G.a.hurt > 0 ? 'hurt' : G.a.happy > 0 ? 'happy' : (G.a.state === 'windup' ? 'angry' : 'normal'), '#ff3b4f']].forEach(function (b) {
+  ctx.textAlign = 'left'; ctx.fillText('YOU', 66, 17); ctx.textAlign = 'right'; ctx.fillText('BRUNO', 414, 17);
+  ctx.font = '14px ' + FONT; ctx.fillStyle = '#0b0d2e'; ctx.textAlign = 'left'; ctx.fillText(Math.ceil(G.pHP), 74, 40); ctx.textAlign = 'right'; ctx.fillText(Math.ceil(G.aHP), 406, 40);
+  [[34, 'player', G.p.hurt > 0 ? 'hurt' : G.p.blocking ? 'focus' : G.p.happy > 0 ? 'happy' : 'normal', '#3556ff'], [446, 'ai', G.a.hurt > 0 ? 'hurt' : G.a.happy > 0 ? 'happy' : (G.a.state === 'windup' ? 'angry' : 'normal'), '#ff3b4f']].forEach(function (b) {
     ctx.save(); circ(ctx, b[0], 38, 25, b[3]); ctx.fill(); ctx.beginPath(); ctx.arc(b[0], 38, 23, 0, 6.2832); ctx.clip();
     ctx.fillStyle = '#fff2'; ctx.fillRect(b[0] - 25, 13, 50, 50); drawHead(ctx, b[0], 40, 21, b[1], b[2], 0); ctx.restore();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; circ(ctx, b[0], 38, 25); ctx.stroke();
   });
   var low = G.time < 10 && G.phase === 'fight', tw = low && Math.floor(time * 4) % 2 ? '#ff3b4f' : '#ffc42e';
-  rr(ctx, 367, 14, 66, 46, 12); ctx.fillStyle = '#0b0d2e'; ctx.fill(); ctx.strokeStyle = tw; ctx.lineWidth = 3; ctx.stroke();
-  ctx.font = '28px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = tw; ctx.fillText(Math.ceil(Math.max(0, G.time)), 400, 39);
-  ctx.font = '14px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.fillText('SCORE ' + Math.round(G.score), 400, 76);
-  if (G.combo > 1) { var sc = 1 + 0.12 * Math.sin(time * 14); textOutlined(ctx, 'COMBO x' + G.combo, 400, 98, 18 * sc, '#ffc42e'); }
+  rr(ctx, 213, 14, 54, 46, 12); ctx.fillStyle = '#0b0d2e'; ctx.fill(); ctx.strokeStyle = tw; ctx.lineWidth = 3; ctx.stroke();
+  ctx.font = '28px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = tw; ctx.fillText(Math.ceil(Math.max(0, G.time)), 240, 39);
+  ctx.font = '14px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.fillText('SCORE ' + Math.round(G.score), 240, 80);
+  if (G.combo > 1) { var sc = 1 + 0.12 * Math.sin(time * 14); textOutlined(ctx, 'COMBO x' + G.combo, 240, 104, 20 * sc, '#ffc42e'); }
   if (G.a.state === 'windup' && G.a.atk) {
     var pu = 0.5 + 0.5 * Math.sin(time * 20);
-    rr(ctx, 210, 112, 380, 38, 14); ctx.fillStyle = 'rgba(255,59,79,' + (0.78 + 0.2 * pu) + ')'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.font = '17px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('INCOMING! ' + G.a.atk.label, 400, 132);
+    rr(ctx, 50, 120, 380, 40, 14); ctx.fillStyle = 'rgba(255,59,79,' + (0.78 + 0.2 * pu) + ')'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = '15px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('INCOMING! ' + G.a.atk.label, 240, 141);
+  }
+  // honest tracking indicator: never hide missing landmarks
+  var v = G.vis;
+  if (v && G.phase !== 'ended') {
+    var msg = '';
+    if (!v.shoulders) msg = 'SHOULDERS NOT VISIBLE';
+    else if (!v.lw && !v.rw) msg = 'BOTH HANDS NOT VISIBLE';
+    else if (!v.lw) msg = 'LEFT HAND NOT VISIBLE';
+    else if (!v.rw) msg = 'RIGHT HAND NOT VISIBLE';
+    if (msg && !G.paused) {
+      rr(ctx, 60, 590, 360, 34, 12); ctx.fillStyle = 'rgba(255,196,46,.92)'; ctx.fill();
+      ctx.font = '14px ' + FONT; ctx.fillStyle = '#2a1d00'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(msg, 240, 608);
+    }
+  }
+  if (G.paused) {
+    ctx.fillStyle = 'rgba(8,6,36,.7)'; ctx.fillRect(0, 0, W, H);
+    textOutlined(ctx, 'TRACKING LOST', 240, 300, 44, '#ffc42e', 1);
+    ctx.font = '15px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.textAlign = 'center'; ctx.fillText('Show your shoulders to continue', 240, 350);
   }
   if (G.phase === 'countdown') {
     ctx.fillStyle = 'rgba(8,6,36,.45)'; ctx.fillRect(0, 0, W, H);
     var local = ((3.2 - G.cd) % 0.8) / 0.8, label = ['3', '2', '1', 'FIGHT!'][Math.min(3, Math.max(0, G.cdIdx))];
     var s = 1 + (1 - easeOut(Math.min(1, local * 2.2))) * 0.8;
-    textOutlined(ctx, label, 400, 215, (label === 'FIGHT!' ? 84 : 130) * s, label === 'FIGHT!' ? '#ffc42e' : '#fff', 1);
-    ctx.font = '15px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.textAlign = 'center'; ctx.fillText('STAY OUT OF THE RED ZONES', 400, 300);
+    textOutlined(ctx, label, 240, 320, (label === 'FIGHT!' ? 92 : 150) * s, label === 'FIGHT!' ? '#ffc42e' : '#fff', 1);
+    ctx.font = '14px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.textAlign = 'center'; ctx.fillText('KEEP BOTH HANDS IN VIEW', 240, 410);
   } else if (G.phase === 'fight' && G.fightT < 0.7) {
-    textOutlined(ctx, 'FIGHT!', 400, 225, 84, '#ffc42e', 1 - G.fightT / 0.7);
+    textOutlined(ctx, 'FIGHT!', 240, 330, 92, '#ffc42e', 1 - G.fightT / 0.7);
   } else if (G.phase === 'ended') {
     ctx.fillStyle = 'rgba(8,6,36,' + Math.min(0.55, G.endT * 0.8) + ')'; ctx.fillRect(0, 0, W, H);
     var es = 1 + (1 - easeOut(Math.min(1, G.endT * 3))) * 0.9;
-    textOutlined(ctx, G.endLabel, 400, 225, 96 * es, G.result && G.result.outcome === 'lose' ? '#ff3b4f' : '#ffc42e', 1);
+    textOutlined(ctx, G.endLabel, 240, 320, 110 * es, G.result && G.result.outcome === 'lose' ? '#ff3b4f' : '#ffc42e', 1);
   }
 }
 
@@ -1096,7 +1164,7 @@ function drawScene(ctx, G, time, bg, hud) {
   ctx.drawImage(bg, -10, -10, W + 20, H + 20);
   var n = Math.floor(time * 2), kk, fl = 1 - ((time * 2) % 1);
   ctx.fillStyle = '#fff';
-  for (kk = 0; kk < 4; kk++) { var hs = Math.sin(n * 12.9898 + kk * 78.233) * 43758.5453, fr = hs - Math.floor(hs); ctx.globalAlpha = fl * 0.9; star(ctx, fr * W, 40 + ((fr * 997) % 1) * 140, 6 + fl * 4, time); }
+  for (kk = 0; kk < 4; kk++) { var hs = Math.sin(n * 12.9898 + kk * 78.233) * 43758.5453, fr = hs - Math.floor(hs); ctx.globalAlpha = fl * 0.9; star(ctx, fr * W, 140 + ((fr * 997) % 1) * 150, 6 + fl * 4, time); }
   ctx.globalAlpha = 1;
   ctx.save(); ctx.translate(STX, STY); ctx.scale(SS, SS);
   drawOpponent(ctx, G, time);
@@ -1116,7 +1184,7 @@ function drawScene(ctx, G, time, bg, hud) {
   ctx.restore();
   ctx.restore();
   if (G.flash > 0) {
-    var vg = ctx.createRadialGradient(400, 225, 160, 400, 225, 460); vg.addColorStop(0, 'rgba(255,59,79,0)'); vg.addColorStop(1, 'rgba(255,59,79,' + (0.7 * G.flash) + ')');
+    var vg = ctx.createRadialGradient(240, 320, 120, 240, 320, 420); vg.addColorStop(0, 'rgba(255,59,79,0)'); vg.addColorStop(1, 'rgba(255,59,79,' + (0.7 * G.flash) + ')');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
   if (hud !== false) drawHUD(ctx, G, time);
@@ -1135,7 +1203,7 @@ function useSnap(tracker, ms) {
 }
 var STATUS = {
   idle: ['Camera Off', 'bad'], 'camera-ready': ['Camera Ready', 'info'], body: ['Body Detected', 'ok'],
-  'move-back': ['Move Back', 'warn'], 'move-closer': ['Move Closer', 'warn'], 'camera-lost': ['Camera Lost', 'bad']
+  'move-back': ['Move Back', 'warn'], 'hands-missing': ['Show Both Hands', 'warn'], 'move-closer': ['Move Closer', 'warn'], 'camera-lost': ['Camera Lost', 'bad']
 };
 function StatusChip(props) { var s = STATUS[props.status] || STATUS.idle; return h('span', { className: 'chip ' + s[1], role: 'status' }, s[0]); }
 
@@ -1163,6 +1231,13 @@ function Preview(props) {
   return h('div', { className: 'preview', ref: box }, props.children);
 }
 
+function VisPips(props) {
+  var s = props.snap, items = [['L hand', s.visLW], ['R hand', s.visRW], ['Shoulders', s.visLS && s.visRS]];
+  return h('div', { className: 'vps', role: 'group', 'aria-label': 'Tracking visibility' }, items.map(function (it, i) {
+    return h('span', { key: i, className: 'vp ' + (it[1] ? 'on' : 'off') }, it[0]);
+  }));
+}
+
 function HeroCanvas() {
   var cv = useRef(null);
   useEffect(function () {
@@ -1171,15 +1246,13 @@ function HeroCanvas() {
     var bg = makeBackground(dpr), G = createGame(), raf = 0, last = performance.now(), nextPunch = 1, side = 'R', atk = 0, lastState = 'idle';
     G.phase = 'fight';
     var demo = {
-      q: [], drainPunches: function () { var q = this.q; this.q = []; return q; }, isBlocking: function () { return false; }, getArmRel: function () { return null; },
-      getPos: function () {
-        var a = G.a, z = a.atk;
+      q: [], drainPunches: function () { var q = this.q; this.q = []; return q; }, isBlocking: function () { return false; },
+      getUpper: function () {
+        var a = G.a, z = a.atk, x = Math.sin(performance.now() / 1400) * 50, d = 0;
         if (a.state === 'windup' && z && atk % 3 !== 0 && a.stateT > 0.55) {
-          if (z.type === 'hook') return { x: 0, duck: 1 };
-          if (z.type === 'straight' && atk % 3 === 1) return { x: 0, duck: 1 };
-          return { x: z.zx - 240 >= 0 ? -230 : 230, duck: 0 };
+          if (z.type === 'hook' || (z.type === 'straight' && atk % 3 === 1)) d = 1; else x = z.zx - 240 >= 0 ? -150 : 150;
         }
-        return { x: Math.sin(performance.now() / 1400) * 60, duck: 0 };
+        return { x: x, duck: d, roll: x / 600, R: null, L: null, vis: null };
       }
     };
     function frame(now) {
@@ -1199,25 +1272,98 @@ function HeroCanvas() {
   return h('canvas', { ref: cv, className: 'hero', 'aria-label': 'Animated preview of the boxing ring' });
 }
 
+/* Live avatar: shows exactly how the boxer follows your upper body. Used in the movement check. */
+function MirrorCanvas(props) {
+  var cv = useRef(null);
+  useEffect(function () {
+    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+    canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var bg = makeBackground(dpr), G = createGame(), raf = 0, last = performance.now();
+    G.phase = 'fight'; G.a.timer = 1e9;
+    function frame(now) {
+      var dt = Math.min(0.05, (now - last) / 1000); last = now;
+      G.time = 60; G.pHP = 100; G.aHP = 100; G.pShow = 100; G.aShow = 100;
+      stepGame(G, dt, props.input, SilentFx);
+      drawScene(ctx, G, now / 1000, bg, false);
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return function () { cancelAnimationFrame(raf); };
+  }, []);
+  return h('canvas', { ref: cv, 'aria-label': 'Your boxer, following your movements' });
+}
+
+/* Kinect-style cursor: right hand moves it, hovering a [data-hand] button for a moment selects it. */
+var DWELL = 1.1;
+function HandCursor(props) {
+  var ref = useRef(null);
+  useEffect(function () {
+    var el = ref.current, fg = el.querySelector('.fg'), raf = 0, cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    var hover = null, dwell = 0, cool = 0, last = performance.now(), CIRC = 150.8;
+    function setHover(b) { if (hover === b) return; if (hover) hover.classList.remove('hand-hover'); hover = b; dwell = 0; if (b) b.classList.add('hand-hover'); }
+    function frame(now) {
+      var dt = Math.min(0.05, (now - last) / 1000); last = now;
+      var c = props.tracker.getCursor();
+      if (!c.valid) { el.style.opacity = '0'; setHover(null); fg.style.strokeDashoffset = CIRC; raf = requestAnimationFrame(frame); return; }
+      el.style.opacity = '1';
+      var tx = c.nx * window.innerWidth, ty = c.ny * window.innerHeight, d = Math.hypot(tx - cx, ty - cy);
+      var a = clamp(0.12 + d / 260, 0.12, 0.7);           // heavier smoothing when still, quick when moving
+      cx += (tx - cx) * a; cy += (ty - cy) * a;
+      el.style.transform = 'translate(' + cx + 'px,' + cy + 'px)';
+      var t = document.elementFromPoint(cx, cy), b = t && t.closest ? t.closest('[data-hand]') : null;
+      if (b && b.disabled) b = null;
+      cool = Math.max(0, cool - dt);
+      if (cool > 0) b = null;
+      setHover(b);
+      if (hover) {
+        dwell += dt;
+        if (dwell >= DWELL) { var pick = hover; setHover(null); cool = 1.0; fg.style.strokeDashoffset = CIRC; Sfx.ding(); pick.click(); }
+      }
+      fg.style.strokeDashoffset = hover ? CIRC * (1 - dwell / DWELL) : CIRC;
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return function () { cancelAnimationFrame(raf); setHover(null); };
+  }, []);
+  return h('div', { className: 'hand-cursor', ref: ref, 'aria-hidden': 'true' },
+    h('svg', { viewBox: '0 0 60 60' },
+      h('circle', { cx: 30, cy: 30, r: 24, className: 'bg' }),
+      h('circle', { cx: 30, cy: 30, r: 24, className: 'fg', transform: 'rotate(-90 30 30)' }),
+      h('circle', { cx: 30, cy: 30, r: 6, className: 'dot' })));
+}
+
+function HandHint(props) {
+  var snap = useSnap(props.tracker, 150);
+  return h('div', { className: 'card' },
+    h('div', { className: 'row' },
+      h('div', { className: 'pip-prev' }, h(Preview, { tracker: props.tracker, fixed: true })),
+      h('div', { className: 'grow', style: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' } }, h(StatusChip, { status: snap.status }), h(VisPips, { snap: snap }))),
+    h('p', { className: 'sub' }, props.text));
+}
+
 function StartScreen(props) {
   return h('div', { className: 'screen' },
     h('h1', { className: 'logo' }, 'Motion Boxing'),
     h(HeroCanvas),
-    h('p', { className: 'sub center' }, 'Stand up, make fists and throw real punches. Your camera is the controller.'),
+    h('p', { className: 'sub center' }, 'Hold your phone or prop it up close. Your upper body is the controller.'),
     h('div', { className: 'how' },
-      h('div', null, h('b', null, 'PUNCH'), 'Snap either arm forward'),
-      h('div', null, h('b', null, 'MOVE'), 'Step or lean sideways, out of the red zones'),
-      h('div', null, h('b', null, 'DUCK'), 'Drop low under high shots'),
+      h('div', null, h('b', null, 'PUNCH'), 'Your hands drive the gloves. Snap an arm out to land a hit'),
+      h('div', null, h('b', null, 'MOVE'), 'Lean your upper body, out of the red zones'),
+      h('div', null, h('b', null, 'DUCK'), 'Drop your head under high shots'),
       h('div', null, h('b', null, 'BLOCK'), 'Both fists up at your face')),
-    h('p', { className: 'rotate-hint center' }, 'Tip: turn your phone sideways for a bigger ring.'),
-    h('button', { className: 'btn gold', onClick: props.onStart }, 'START GAME'),
+    props.camOn ? h(HandHint, { tracker: props.tracker, text: 'Camera is on. Raise your RIGHT hand, move the cursor over PLAY GAME and hold it there for a second.' }) : null,
+    h('button', { className: 'btn gold', 'data-hand': '1', onClick: props.onStart }, 'PLAY GAME'),
+    props.camOn ? h('button', { className: 'btn ghost', onClick: props.onCamOff }, 'TURN CAMERA OFF') : null,
     h('details', { className: 'dev' },
       h('summary', null, 'Developer notes and limits'),
       h('ul', null,
-        h('li', null, 'Tracking is MediaPipe Pose Landmarker (lite model) running on your device. Video is not uploaded.'),
-        h('li', null, 'A single RGB camera cannot measure depth. Punches are detected from 2D heuristics: elbow straightening, wrist speed away from the shoulder and a weak wrist-toward-camera cue. A punch straight at the lens looks small, so a slightly angled stance works best.'),
-        h('li', null, 'All distances are normalised by shoulder width, so body size and camera distance matter less. Thresholds are in CFG at the top of the script and need tuning per setup.'),
-        h('li', null, 'Your head position drives your boxer, so you can move freely. Bruno aims a red zone at you, locks it, then strikes. The punch only lands if your body is inside the zone: sidestep narrow shots, duck high ones, and block when you cannot escape. Moving closer to or further from the camera is not tracked.'),
+        h('li', null, 'Upper body only. Only the nose, shoulders, elbows and wrists are read from MediaPipe Pose Landmarker (lite model). Legs and hips are never used or drawn. The model still estimates all 33 points internally, and that cost cannot be avoided with this model.'),
+        h('li', null, 'Everything runs on your device. Video is not uploaded.'),
+        h('li', null, 'The boxer is retargeted continuously: gloves follow your wrists, elbows follow your elbows, the body tilts with your shoulder line and shifts with your head. All distances are normalised by shoulder width, so a close phone works. Joint values are smoothed with a short low-latency filter.'),
+        h('li', null, 'A single RGB camera cannot measure depth. How far an arm reaches toward the lens is inferred from elbow straightening, so punches use 2D heuristics and a weak depth cue. Thresholds live in CFG at the top of the script.'),
+        h('li', null, 'Bruno aims a red zone at you, locks it, then strikes. The punch only lands if your body is inside the zone: lean out of narrow shots, duck high ones, block when you cannot escape.'),
+        h('li', null, 'Tracking can be lost if a hand leaves the frame. The L hand, R hand and Shoulders lights show what the camera sees, a banner appears in the match, and the fight pauses if your shoulders disappear.'),
+        h('li', null, 'Menus use a virtual cursor on your right hand, with a one-second hold to select. The cursor is off during the fight.'),
         h('li', null, 'Left and right follow your anatomy. The preview is mirrored like a mirror, and your right arm is drawn in cyan with an R label.'),
         h('li', null, 'Camera access needs HTTPS or localhost. Embedded or sandboxed views, including a Claude Artifact, can block both the camera and the model download.'))));
 }
@@ -1279,22 +1425,24 @@ function Calibration(props) {
     }, 100);
     return function () { clearInterval(id); };
   }, [tracker]);
-  var frac = snap.swFrac || 0, max = 0.5;
-  var hint = snap.status === 'move-back' ? 'Step back until your head, shoulders and both elbows fit in the picture.'
-    : snap.status === 'move-closer' ? 'Step a little closer.'
-    : snap.status === 'body' ? (snap.motion < CFG.stillMax ? 'Hold still…' : 'Hold still for a moment, fists up in a guard.')
-    : 'Stand in front of the camera so it can see you from the waist up.';
+  var frac = snap.swFrac || 0, max = 0.8;
+  var hint = snap.status === 'move-back' ? 'Move the phone back a little so your head and both shoulders fit.'
+    : snap.status === 'move-closer' ? 'Bring the phone a bit closer.'
+    : snap.status === 'hands-missing' ? 'Raise both fists into view, like a boxing guard.'
+    : snap.status === 'body' ? (snap.motion < CFG.stillMax ? 'Hold still…' : 'Hold still for a moment.')
+    : 'Point the front camera at your head and shoulders.';
   return h('div', { className: 'screen' },
-    h('h2', { className: 'title' }, 'Stand here'),
-    h('p', { className: 'sub' }, 'Stand about 2 m (6 to 7 ft) back. Show your head, shoulders and both arms. Hold your fists up in a boxing guard.'),
+    h('h2', { className: 'title' }, 'Upper-body setup'),
+    h('p', { className: 'sub' }, 'Prop the phone at arm’s length or closer. Show your head, shoulders and both fists. Your legs do not need to be in view.'),
     h(Preview, { tracker: tracker },
       h('svg', { className: 'guide', viewBox: '0 0 100 100', preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' },
         h('g', { fill: 'none', stroke: '#fff', strokeOpacity: 0.65, strokeWidth: 0.7, strokeDasharray: '2.5 2' },
-          h('ellipse', { cx: 50, cy: 28, rx: 8, ry: 10 }),
-          h('path', { d: 'M30 62 Q30 44 42 40 L58 40 Q70 44 70 62 L70 100' }),
-          h('path', { d: 'M30 62 L22 50 L28 36 M70 62 L78 50 L72 36' }))),
+          h('ellipse', { cx: 50, cy: 30, rx: 9, ry: 11 }),
+          h('path', { d: 'M18 100 L18 66 Q18 52 34 49 L66 49 Q82 52 82 66 L82 100' }),
+          h('circle', { cx: 36, cy: 44, r: 6 }), h('circle', { cx: 64, cy: 44, r: 6 }))),
       h('span', { className: 'tag' }, 'MIRRORED')),
     h('div', { className: 'row between' }, h(StatusChip, { status: snap.status }), h('span', { className: 'sub' }, snap.fps ? snap.fps + ' fps' : '')),
+    h(VisPips, { snap: snap }),
     h('div', { className: 'card' },
       h('p', null, hint),
       h('div', null,
@@ -1309,9 +1457,9 @@ function Calibration(props) {
 var STEPS = [
   { label: 'Raise your RIGHT hand', hint: 'Lift your right hand above your shoulder', test: function (s) { return s.rRaised; } },
   { label: 'Raise your LEFT hand', hint: 'Lift your left hand above your shoulder', test: function (s) { return s.lRaised; } },
-  { label: 'Move RIGHT', hint: 'Lean or step to your right', test: function (s) { return s.dodge === 'R'; } },
-  { label: 'Move LEFT', hint: 'Lean or step to your left', test: function (s) { return s.dodge === 'L'; } },
-  { label: 'DUCK', hint: 'Bend your knees and drop your head low', test: function (s) { return s.duck > 0.5; } }
+  { label: 'Lean RIGHT', hint: 'Tilt your upper body to your right', test: function (s) { return s.dodge === 'R'; } },
+  { label: 'Lean LEFT', hint: 'Tilt your upper body to your left', test: function (s) { return s.dodge === 'L'; } },
+  { label: 'DUCK', hint: 'Drop your head low', test: function (s) { return s.duck > 0.5; } }
 ];
 function Tutorial(props) {
   var tracker = props.tracker, snap = useSnap(tracker, 100);
@@ -1330,11 +1478,16 @@ function Tutorial(props) {
     return function () { clearInterval(id); };
   }, [tracker]);
   var all = idx >= STEPS.length, lean = clamp(snap.lean || 0, -1, 1);
+  useEffect(function () { if (props.onProgress) props.onProgress(all); }, [all]);
   var last = snap.last && performance.now() - snap.lastAt < 1500 ? snap.last : '';
   return h('div', { className: 'screen' },
     h('h2', { className: 'title' }, 'Movement check'),
-    h(Preview, { tracker: tracker }, h('span', { className: 'tag' }, 'MIRRORED')),
+    h('p', { className: 'sub' }, 'The boxer on the right copies you live. Move your hands slowly and watch the gloves follow.'),
+    h('div', { className: 'duo' },
+      h(Preview, { tracker: tracker, fixed: true }, h('span', { className: 'tag' }, 'MIRRORED')),
+      h(MirrorCanvas, { input: tracker })),
     h('div', { className: 'row between' }, h(StatusChip, { status: snap.status }), h('span', { className: 'gest' }, last)),
+    h(VisPips, { snap: snap }),
     h('ul', { className: 'steps' }, STEPS.map(function (s, i) {
       var cur = i === idx, live = cur && s.test(snap);
       return h('li', { key: i, className: done[i] ? 'done' : cur ? 'cur' : '' },
@@ -1350,11 +1503,12 @@ function Tutorial(props) {
       h('div', { className: 'meterlbl' }, h('span', null, 'left'), h('span', null, 'centre'), h('span', null, 'right')),
       h('div', { className: 'prog', 'aria-label': 'Duck' }, h('i', { style: { width: (snap.duck || 0) * 100 + '%' } })),
       h('div', { className: 'meterlbl' }, h('span', null, 'standing'), h('span', null, 'ducking')),
-      h('p', { className: 'sub' }, 'Bonus: with your elbows bent, snap an arm out. The panel above shows each punch and block it detects.')),
+      h('p', { className: 'sub' }, 'Bonus: bend your elbows, then snap an arm out. Punches and blocks show up next to the status light.')),
     h('div', { className: 'row' },
       h('button', { className: 'btn ghost', onClick: props.onBack }, 'RECALIBRATE'),
-      h('button', { className: 'btn gold grow', onClick: props.onDone, disabled: !all }, all ? 'START MATCH' : 'DO ALL 5 MOVES'),
-      !all ? h('button', { className: 'btn ghost', onClick: props.onDone }, 'SKIP') : null));
+      h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: props.onDone, disabled: !all }, all ? 'START MATCH' : 'DO ALL 5 MOVES'),
+      !all ? h('button', { className: 'btn ghost', onClick: props.onDone }, 'SKIP') : null),
+    all ? h('p', { className: 'sub center' }, 'Tip: hold your right hand over START MATCH for a second to begin hands-free.') : null);
 }
 
 function CamStrip(props) {
@@ -1362,14 +1516,14 @@ function CamStrip(props) {
   var last = snap.last && performance.now() - snap.lastAt < 900 ? snap.last : '';
   return h('div', { className: 'strip' },
     h('div', { className: 'pip' }, h(Preview, { tracker: props.tracker, fixed: true })),
-    h('div', { className: 'info' }, h(StatusChip, { status: snap.status }), h('div', { className: 'gest', 'aria-live': 'polite' }, last)),
+    h('div', { className: 'info' }, h(StatusChip, { status: snap.status }), h(VisPips, { snap: snap }), h('div', { className: 'gest', 'aria-live': 'polite' }, last)),
     props.children);
 }
 
 function Match(props) {
   var cv = useRef(null), ms = useState(Sfx.muted), muted = ms[0], setMuted = ms[1];
   useEffect(function () {
-    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame(), raf = 0, last = performance.now(), dead = false;
     props.input.drainPunches();
@@ -1391,7 +1545,6 @@ function Match(props) {
   return h('div', { className: 'screen', style: { justifyContent: 'flex-start' } },
     h('div', { className: 'matchwrap' },
       h('canvas', { ref: cv, 'aria-label': 'Boxing match' }),
-      h('p', { className: 'rotate-hint center' }, 'Tip: turn your phone sideways for a bigger ring.'),
       props.debug
         ? h('div', { className: 'strip' },
             h('div', { className: 'dbg' }, h('b', null, 'DEBUG KEYBOARD MODE. NO CAMERA TRACKING.'), h('br'),
@@ -1411,10 +1564,11 @@ function Result(props) {
     h('div', { className: 'stats' },
       stat('Score', r.score, 'big'), stat('Punches landed', r.hits), stat('Accuracy', acc + '%'),
       stat('Dodges', r.dodges), stat('Blocks', r.blocks), stat('Hits taken', r.taken), stat('Your HP', Math.ceil(r.pHP) + ' / 100')),
-    h('button', { className: 'btn gold', onClick: props.onAgain }, 'PLAY AGAIN'),
+    props.camOn ? h(HandHint, { tracker: props.tracker, text: 'Move your RIGHT hand to steer the cursor. Hold it over a button for a second to select.' }) : null,
+    h('button', { className: 'btn gold', 'data-hand': '1', onClick: props.onAgain }, 'PLAY AGAIN'),
     h('div', { className: 'row' },
-      props.debug ? null : h('button', { className: 'btn ghost grow', onClick: props.onRecal }, 'RECALIBRATE'),
-      h('button', { className: 'btn ghost grow', onClick: props.onHome }, 'MAIN MENU')));
+      props.debug ? null : h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onRecal }, 'RECALIBRATE'),
+      h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onHome }, 'MAIN MENU')));
 }
 
 function App() {
@@ -1425,27 +1579,34 @@ function App() {
   var s2 = useState('camera'), mode = s2[0], setMode = s2[1];
   var s3 = useState(null), result = s3[0], setResult = s3[1];
   var s4 = useState(0), round = s4[0], setRound = s4[1];
+  var s5 = useState(false), camOn = s5[0], setCamOn = s5[1];
+  var s6 = useState(false), calibrated = s6[0], setCalibrated = s6[1];
+  var s7 = useState(false), tutDone = s7[0], setTutDone = s7[1];
   useEffect(function () { return function () { tracker.destroy(); dbg.current.detach(); }; }, []);
   var input = mode === 'debug' ? dbg.current : tracker;
-  function home() { tracker.releaseCamera(); dbg.current.detach(); setMode('camera'); setScreen('start'); }
+  function home() { dbg.current.detach(); setMode('camera'); setScreen('start'); }      // the camera stays on so the hand cursor keeps working
+  function camOff() { tracker.releaseCamera(); setCamOn(false); setCalibrated(false); }
   function play() { setRound(function (r) { return r + 1; }); setScreen('match'); }
-  if (screen === 'start') return h(StartScreen, { onStart: function () { Sfx.init(); setScreen('permission'); } });
-  if (screen === 'permission') return h(Permission, {
+  function start() { Sfx.init(); if (camOn && calibrated) play(); else if (camOn) setScreen('calibration'); else setScreen('permission'); }
+  var cursorOn = camOn && mode === 'camera' && (screen === 'start' || screen === 'result' || (screen === 'tutorial' && tutDone));
+  var body;
+  if (screen === 'start') body = h(StartScreen, { tracker: tracker, camOn: camOn, onStart: start, onCamOff: camOff });
+  else if (screen === 'permission') body = h(Permission, {
     tracker: tracker, onBack: home,
-    onReady: function () { tracker.startTracking(); setMode('camera'); setScreen('calibration'); },
-    onDebug: function () { tracker.releaseCamera(); dbg.current.attach(); setMode('debug'); play(); }
+    onReady: function () { tracker.startTracking(); setMode('camera'); setCamOn(true); setCalibrated(false); setScreen('calibration'); },
+    onDebug: function () { tracker.releaseCamera(); setCamOn(false); setCalibrated(false); dbg.current.attach(); setMode('debug'); play(); }
   });
-  if (screen === 'calibration') return h(Calibration, { tracker: tracker, onDone: function () { setScreen('tutorial'); }, onBack: home });
-  if (screen === 'tutorial') return h(Tutorial, { tracker: tracker, onDone: play, onBack: function () { setScreen('calibration'); } });
-  if (screen === 'match') return h(Match, { key: round, tracker: tracker, input: input, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); setScreen('result'); } });
-  return h(Result, { result: result, debug: mode === 'debug', onAgain: play, onRecal: function () { setScreen('calibration'); }, onHome: home });
+  else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); setTutDone(false); setScreen('tutorial'); }, onBack: home });
+  else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, onDone: play, onProgress: setTutDone, onBack: function () { setScreen('calibration'); } });
+  else if (screen === 'match') body = h(Match, { key: round, tracker: tracker, input: input, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); setScreen('result'); } });
+  else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: play, onRecal: function () { setScreen('calibration'); }, onHome: home });
+  return h(React.Fragment, null, body, cursorOn ? h(HandCursor, { tracker: tracker }) : null);
 }
 
-window.__MB = { GestureEngine: GestureEngine, createGame: createGame, stepGame: stepGame, CFG: CFG, SilentFx: SilentFx };
+window.__MB = { GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
 </script>
 
-</body>
-</html>
+</body></html>
