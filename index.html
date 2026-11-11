@@ -957,7 +957,7 @@ var CFG = {
     reachRate: 1.6,               // wrist-to-shoulder distance growth (SW/s)
     zRate: 1.3,                   // wrist toward the camera (MediaPipe z, SW/s); weak, noisy
     scaleRate: 0.9,               // hand growing in the image (wrist-to-fingers length, SW/s); the best single-camera depth cue
-    ownFwd: 0.4, lockMs: 280, r3Rate: 3.5, fzRate: 3.0, e3Rate: 1.8, r3Disp: 0.5, fzDisp: 0.5, e3Disp: 0.35,   // each cue needs BOTH the rate and the distance travelled over the last 150-500 ms, so landmark noise cannot fake it. REAL 3D cues from MediaPipe's world landmarks (metres, hip centred): 3D wrist-to-shoulder distance growth (shoulder widths/s), wrist moving toward the camera (SW/s), arm straightening (ratio/s)
+    ownFwd: 0.4, lockMs: 280, hardMs: 220, sameMs: 380, yieldRatio: 1.15, r3Rate: 3.5, fzRate: 3.0, e3Rate: 1.8, r3Disp: 0.5, fzDisp: 0.5, e3Disp: 0.35,   // each cue needs BOTH the rate and the distance travelled over the last 150-500 ms, so landmark noise cannot fake it. REAL 3D cues from MediaPipe's world landmarks (metres, hip centred): 3D wrist-to-shoulder distance growth (shoulder widths/s), wrist moving toward the camera (SW/s), arm straightening (ratio/s)
     dOn: 0.35,                    // depth score that arms a WINDUP on its own, so a straight punch toward the lens needs no sideways speed
     fwdMin: 0.25,                 // at least one forward cue is required for a straight punch, so speed alone is not a punch
     fire: 0.5,                    // forward-punch confidence needed to register it
@@ -1153,9 +1153,12 @@ GestureEngine.prototype._arm = function (s, L, sw, t) {
   var onV = P.vOn / sens, offV = P.vOff / sens;                    // hysteresis: separate activation and reset speeds
   a.onC = v >= onV ? a.onC + 1 : 0; a.offC = (v < offV && dScore < 0.2) ? a.offC + 1 : 0; a.dOnC = dScore >= P.dOn ? a.dOnC + 1 : 0;
   var typ = null, W = a.win;
-  var ot = this.arms[s === 'R' ? 'L' : 'R'], otherBusy = (ot.st === 'STRIKE' || (ot.st === 'WINDUP' && ot.win && ot.win.seen) || (ot.tFire != null && t - ot.tFire < P.lockMs)), ownStrong = dScore >= 0.6 || fwd >= 0.75;
-  if (otherBusy && !ownStrong) { if (a.st === 'WINDUP') a.st = 'GUARD'; a.onC = 0; a.dOnC = 0; }      // the other fist is already punching: this hand is just riding along with the body
-  if ((a.st === 'GUARD' || a.st === 'READY') && (a.onC >= P.onFrames || a.dOnC >= 2) && !(otherBusy && !ownStrong) && !this.block && t >= a.hold && hist.length >= 3) {
+  var ot = this.arms[s === 'R' ? 'L' : 'R'], oFired = ot.tFire > 0 ? t - ot.tFire : 1e9, ownStrong = dScore >= 0.8 || fwd >= 0.9;
+  var otherBusy = oFired < P.hardMs || ((ot.st === 'STRIKE' || (ot.st === 'WINDUP' && ot.win && ot.win.seen) || oFired < P.lockMs) && !ownStrong);
+  var yieldTo = ot.vis && ot.st !== 'RECOVERY' && ot.score >= P.fire && ot.score > score * P.yieldRatio && ot.st !== 'STRIKE';       // both hands show a forward burst (body lean, or a shove with both): only the stronger one can be the punch
+  var sameWait = a.tFire > 0 && t - a.tFire < P.sameMs;                                                                     // one hand cannot throw two punches inside one punch cycle: the pull-back and the bounce are not punches
+  if ((otherBusy || yieldTo || sameWait) && a.st !== 'STRIKE' && a.st !== 'RECOVERY') { if (a.st === 'WINDUP') a.st = 'GUARD'; a.onC = 0; a.dOnC = 0; }      // the other fist is already punching (or clearly stronger): this hand is just riding along with the body
+  if ((a.st === 'GUARD' || a.st === 'READY') && (a.onC >= P.onFrames || a.dOnC >= 2) && !(otherBusy || yieldTo || sameWait) && !this.block && t >= a.hold && hist.length >= 3) {
     a.st = 'WINDUP';
     var s0 = b || hist[0];
     W = a.win = { t0: s0.t, rx0: s0.rx, ry0: s0.ry, reach0: s0.reach, minRx: Math.min(s0.rx, rx), maxRx: Math.max(s0.rx, rx), highRy: Math.min(s0.ry, ry), lowRy: Math.max(s0.ry, ry), peakV: v, peakVUp: vUp, maxFwd: fwdOld, peakScore: score, maxZS: Math.max(zC, scC), maxEZ: Math.max(extC, zC, fzC, e3C), seen: 0, r30: s0.r3 == null ? -1 : s0.r3, peakD: dScore, fwdOwn: Math.max(fwd, 0) };
