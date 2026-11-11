@@ -162,6 +162,13 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .mpip.lowpip { top: auto; bottom: 3%; }
 .syncinfo { font: 600 11px/1.3 var(--body); color: var(--mute); }
 .syncnote { position: absolute; left: 6%; right: 6%; top: 46%; text-align: center; font: 700 14px/1.3 var(--body); color: #fff; background: rgba(10, 13, 43, 0.8); padding: 10px; border-radius: 12px; }
+.fsteps { display: flex; gap: 8px; justify-content: center; margin: 2px 0 6px; }
+.fsteps i { width: 26px; height: 6px; border-radius: 4px; background: rgba(255,255,255,.2); }
+.fsteps i.done { background: #4cf2a0; }
+.fsteps i.cur { background: #ffd21a; }
+.fpips { display: flex; gap: 12px; justify-content: center; min-height: 26px; }
+.fpip { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); }
+.fpip.on { background: #ffd21a; border-color: #ffd21a; }
 .mpause { position: absolute; inset: 0; z-index: 8; background: rgba(6,6,14,.78); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; }
 .mpause b { font: 900 italic 40px/1 var(--head, inherit); letter-spacing: .06em; color: #ffd21a; text-shadow: 0 2px 0 #000; margin-bottom: 8px; }
 .mpause .btn { width: min(78%, 300px); min-height: 56px; font-size: 18px; }
@@ -957,18 +964,18 @@ var CFG = {
     reachRate: 1.6,               // wrist-to-shoulder distance growth (SW/s)
     zRate: 1.3,                   // wrist toward the camera (MediaPipe z, SW/s); weak, noisy
     scaleRate: 0.9,               // hand growing in the image (wrist-to-fingers length, SW/s); the best single-camera depth cue
-    ownFwd: 0.4, lockMs: 280, hardMs: 220, sameMs: 380, yieldRatio: 1.15, r3Rate: 3.5, fzRate: 3.0, e3Rate: 1.8, r3Disp: 0.5, fzDisp: 0.5, e3Disp: 0.35,   // each cue needs BOTH the rate and the distance travelled over the last 150-500 ms, so landmark noise cannot fake it. REAL 3D cues from MediaPipe's world landmarks (metres, hip centred): 3D wrist-to-shoulder distance growth (shoulder widths/s), wrist moving toward the camera (SW/s), arm straightening (ratio/s)
+    ownFwd: 0.4, lockMs: 220, hardMs: 120, sameMs: 190, yieldRatio: 1.15, r3Rate: 3.5, fzRate: 3.0, e3Rate: 1.8, r3Disp: 0.5, fzDisp: 0.5, e3Disp: 0.35,   // each cue needs BOTH the rate and the distance travelled over the last 150-500 ms, so landmark noise cannot fake it. REAL 3D cues from MediaPipe's world landmarks (metres, hip centred): 3D wrist-to-shoulder distance growth (shoulder widths/s), wrist moving toward the camera (SW/s), arm straightening (ratio/s)
     dOn: 0.35,                    // depth score that arms a WINDUP on its own, so a straight punch toward the lens needs no sideways speed
     fwdMin: 0.25,                 // at least one forward cue is required for a straight punch, so speed alone is not a punch
     fire: 0.5,                    // forward-punch confidence needed to register it
     vOn: 1.0, vOff: 0.55,         // hysteresis: wrist speed that arms a WINDUP and the lower speed that counts as settled again
     onFrames: 2,                  // consecutive frames above vOn before WINDUP starts
     fwdSettleMs: 25, windMs: 450, // a straight punch is classified up to 25 ms after it is confirmed; WINDUP is abandoned after 450 ms
-    extMs: 380,                   // longest STRIKE phase
+    extMs: 260,                   // longest STRIKE phase (fast repeated punches: a jab cycle is about a quarter of a second)
     cross: { v: 2.8, reach: 1.3, ang: 135 },                        // a forward punch that is this fast and this extended is a CROSS, otherwise a JAB
     hook: { dx: 0.7, ratio: 1.25, fwdMax: 0.6, v: 1.5 },   // horizontal sweep (SW), horizontal-to-vertical ratio, largest forward evidence, minimum speed
     upper: { rise: 0.55, ratio: 1.15, vUp: 1.5, fwdMax: 0.75, fromY: 0.1, toY: -1.1 },   // rise from the lowest point (SW), rise-to-sideways ratio, upward speed, largest forward evidence; must start at or below the shoulder line and end below head height
-    recMinMs: 70, recMaxMs: 700,  // RECOVERY lasts at least 70 ms and needs the hand to come back; after 700 ms a still hand is accepted anyway
+    recMinMs: 40, recMaxMs: 600,  // RECOVERY lasts at least 70 ms and needs the hand to come back; after 700 ms a still hand is accepted anyway
     jumpSW: 1.0, lossMs: 250, warmMs: 300      // a single-frame jump larger than this is a tracking glitch; after any loss no punch is accepted for 250 ms
   },
   raiseAbove: 0.35,     // wrist above shoulder line by this much = hand raised
@@ -1038,7 +1045,7 @@ function GestureEngine() {
     last: '', lastAt: 0, punchCount: 0, dodgeCount: 0, lastPunchAt: -1e9, lastPunchSide: '', lastType: '', phys: 0, dupPrev: 0
   };
   this.baseNoseX = null; this.baseNoseY = null; this.baseMidX = null; this.baseHeadRel = 0; this.baseRoll = 0; this.leanNoise = 0;
-  this.punches = []; this.dupPrev = 0;
+  this.punches = []; this.dupPrev = 0; this.handSens = { R: 1, L: 1 };
   this.reset();
 }
 GestureEngine.prototype.reset = function () {
@@ -1089,14 +1096,14 @@ GestureEngine.prototype._rec = function (t, pun) {
 GestureEngine.prototype.drainPunches = function () { var q = this.punches; this.punches = []; return q; };
 GestureEngine.prototype._note = function (label, t, type, side, conf, ptype) {
   var f = this.feat; f.last = label; f.lastAt = t;
-  if (type === 'punch') { this.punches.push({ side: side, t: t, conf: conf, type: ptype || 'jab' }); f.punchCount++; f.phys++; f.lastPunchAt = t; f.lastPunchSide = side; f.lastType = ptype || 'jab'; }
+  if (type === 'punch') { this.punches.push({ side: side, t: t, conf: conf, type: ptype || 'jab', pv: this.arms[side].peakV || 0 }); f.punchCount++; f.phys++; f.lastPunchAt = t; f.lastPunchSide = side; f.lastType = ptype || 'jab'; }
 };
 
 /* One arm: continuous pose for the avatar, plus the punch state machine
    GUARD -> WINDUP -> STRIKE -> RECOVERY -> READY. Returns the punch type ('jab', 'cross', 'hook', 'upper') on the one frame a punch is registered, else null.
    One physical punch = one event: after the event the hand must come back (RECOVERY) and settle (READY) before another can start. */
 GestureEngine.prototype._arm = function (s, L, sw, t) {
-  var P = CFG.punch, sens = SETTINGS.punch, a = this.arms[s], f = this.feat, sg = s === 'R' ? 1 : -1;
+  var P = CFG.punch, sens = SETTINGS.punch * ((this.handSens && this.handSens[s]) || 1), a = this.arms[s], f = this.feat, sg = s === 'R' ? 1 : -1;
   var idx = s === 'R' ? [12, 14, 16, 20, 18] : [11, 13, 15, 19, 17];
   var S = L[idx[0]], E = L[idx[1]], Wr = L[idx[2]], Fi = L[idx[3]], Pk = L[idx[4]];
   a.vis = E.v > CFG.visMin && (s === 'R' ? f.visRW : f.visLW);
@@ -1189,7 +1196,7 @@ GestureEngine.prototype._arm = function (s, L, sw, t) {
     if (score >= P.fire && v >= onV && !a.dupFlag) { a.dupFlag = true; this.dupPrev++; f.dupPrev = this.dupPrev; }     // a second burst during recovery: counted, not fired
     if (v < offV) a.dupFlag = false;
     var rel = t - a.recT;
-    if (a.offC >= 2 && ((a.retr && rel >= P.recMinMs) || rel > P.recMaxMs)) { a.st = 'READY'; a.onC = 0; }
+    if ((a.offC >= 2 && ((a.retr && rel >= P.recMinMs) || rel > P.recMaxMs)) || (a.retr && rel >= P.recMinMs && score >= P.fire && fwd >= P.fwdMin)) { a.st = 'READY'; a.onC = 0; }      // the hand is back and is already driving forward again: rapid fire does not wait for a pause
   }
   return typ;
 };
@@ -3373,6 +3380,7 @@ function SettingsScreen(props) {
       h('label', { className: 'fld' }, h('span', null, 'Your name (shown to your opponent)'), h('input', { type: 'text', value: cfg.name, maxLength: 14, placeholder: 'Player', autoCorrect: 'off', onChange: function (e) { setC({ name: e.target.value }); } }))),
     h('div', { className: 'spacer' }),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onMovement }, 'MOVEMENT CHECK'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onPunchTest }, 'PUNCH TEST')),
+    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onFightCal }, 'FIGHT SETUP')),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onHow }, 'HOW TO PLAY'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onCamOff }, 'CAMERA OFF')),
     h('div', { className: 'row' }, h('span', { style: { display: 'none' } }), h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: props.onBack }, 'BACK')));
 }
@@ -3412,7 +3420,7 @@ function PunchTest(props) {
   return h('div', { className: 'screen fit' },
     h('h2', { className: 'title' }, 'PUNCH TEST'),
     h('div', { className: 'ptwrap' }, h('div', { className: 'ptprev' }, h(Preview, { tracker: tracker, fixed: true })), h('div', { className: 'ptarms' }, arm('R', 'RIGHT'), arm('L', 'LEFT'))),
-    h('div', { className: 'ptcnt' }, h('span', null, 'JAB ' + cnt.jab), h('span', null, 'CROSS ' + cnt.cross), h('span', null, 'HOOK ' + cnt.hook), h('span', null, 'UPPER ' + cnt.upper), h('em', null, cnt.last || 'throw a punch at the camera')),
+    h('div', { className: 'ptcnt' }, h('span', null, 'JAB ' + (cnt.jab + cnt.cross)), h('span', null, 'HOOK ' + cnt.hook), h('span', null, 'UPPER ' + cnt.upper), h('em', null, cnt.last || 'throw a punch at the camera')),
     !eng.hasW ? h('p', { className: 'sub', style: { fontSize: 12 } }, '3D depth data is not available from the camera model on this device. Depth punches use the hand size only.') : null,
     rec.text ? h('div', { className: 'card slim' }, h('textarea', { ref: ta, className: 'ptext', readOnly: true, value: rec.text, onClick: function () { try { ta.current.select(); } catch (e) { } } }), h('p', { className: 'sub', style: { fontSize: 12 } }, note || 'Copy this text and paste it in the chat.')) : null,
     h('div', { className: 'spacer' }),
@@ -3491,6 +3499,82 @@ function Calibration(props) {
     h('p', { className: 'cmsg', 'aria-live': 'polite' }, hint),
     h('div', { className: 'prog', 'aria-label': 'Calibration progress' }, h('i', { style: { width: prog * 100 + '%' } })),
     h('div', { className: 'row' }, h(FgBtn, { cls: 'ghost grow', icon: 'back', label: 'BACK', onClick: props.onBack })));
+}
+
+/* FIGHT SETUP: a short guided calibration. It checks the distance, then listens to a few real punches from each hand and sets how sensitive each hand should be for THIS person. Stored on the device. */
+var FCAL = {
+  key: 'mb.fcal', data: null,
+  load: function () { try { var d = JSON.parse(localStorage.getItem(FCAL.key) || 'null'); if (d && d.v === 1) FCAL.data = d; } catch (e) { } return FCAL.data; },
+  save: function (d) { FCAL.data = d; try { localStorage.setItem(FCAL.key, JSON.stringify(d)); } catch (e) { } },
+  apply: function (eng) { var d = FCAL.data; if (eng) eng.handSens = { R: (d && d.R) || 1, L: (d && d.L) || 1 }; },
+  sens: function (arr) { if (!arr || arr.length < 2) return 1; var a = arr.slice().sort(function (x, y) { return x - y; }), m = a[Math.floor(a.length / 2)]; return Math.round(clamp(CFG.punch.vOn / (0.4 * Math.max(0.3, m)), 0.75, 1.6) * 100) / 100; }
+};
+var FSTEPS = [
+  { id: 'dist', title: 'GET IN POSITION', hint: 'Stand so your head and both shoulders fill the frame, fists up. Hold still.', need: 1 },
+  { id: 'R', side: 'R', title: 'RIGHT JABS', hint: 'Throw 3 straight punches with your RIGHT hand, at the camera.', need: 3 },
+  { id: 'L', side: 'L', title: 'LEFT JABS', hint: 'Now 3 straight punches with your LEFT hand.', need: 3 },
+  { id: 'combo', title: 'FAST COMBO', hint: 'Quick: RIGHT, RIGHT, LEFT.', need: 1 },
+  { id: 'side', title: 'MOVE AND PUNCH', hint: 'Lean to your LEFT and throw a RIGHT punch. Twice.', need: 2 }
+];
+function FightCal(props) {
+  var tracker = props.tracker, eng = tracker.engine, snap = useSnap(tracker, 100);
+  var is = useState(0), idx = is[0], setIdx = is[1], cs = useState(0), cnt = cs[0], setCnt = cs[1], rs = useState(null), res = rs[0], setRes = rs[1], ms = useState(''), msg = ms[0], setMsg = ms[1];
+  var R = useRef({ idx: 0, cnt: 0, hold: 0, t0: Date.now(), samples: { R: [], L: [] }, evts: [], sw: 0, relaxed: false, done: false }).current;
+  function finish() {
+    if (R.done) return; R.done = true;
+    var old = FCAL.data || {}, d = { v: 1, R: R.samples.R.length >= 2 ? FCAL.sens(R.samples.R) : (old.R || 1), L: R.samples.L.length >= 2 ? FCAL.sens(R.samples.L) : (old.L || 1), sw: R.sw || old.sw || 0, at: Date.now() };
+    FCAL.save(d); FCAL.apply(eng); setRes(d); Sfx.ding();
+    setTimeout(function () { props.onDone(); }, 3200);
+  }
+  function go(n) { R.idx = n; R.cnt = 0; R.hold = 0; R.t0 = Date.now(); R.evts = []; R.relaxed = false; setCnt(0); setMsg(''); eng.handSens = { R: 1, L: 1 }; if (n >= FSTEPS.length) { setIdx(n); finish(); } else { setIdx(n); Sfx.ding(); } }
+  useEffect(function () {
+    eng.handSens = { R: 1, L: 1 }; tracker.drainPunches();
+    var id = setInterval(function () {
+      if (R.done || R.idx >= FSTEPS.length) return;
+      var st = FSTEPS[R.idx], s = tracker.state, q = tracker.drainPunches(), el = Date.now() - R.t0;
+      q.forEach(function (p) { if (p.pv > 0) R.samples[p.side].push(p.pv); });
+      if (st.id === 'dist') {
+        var ok = s.status === 'body' && s.motion < CFG.stillMax * 1.4; R.hold = ok ? R.hold + 0.1 : 0;
+        setCnt(Math.min(1, R.hold / 1.2));
+        if (R.hold >= 1.2) { R.sw = s.swFrac || 0; try { tracker.captureBaseline(); } catch (e) { } go(R.idx + 1); }
+        return;
+      }
+      if (st.side) {
+        var n = q.filter(function (p) { return p.side === st.side; }).length; if (n) { R.cnt += n; setCnt(R.cnt); Sfx.ding(); }
+        if (R.cnt >= st.need) { go(R.idx + 1); return; }
+        if (el > 8000 && !R.relaxed && R.cnt === 0) { R.relaxed = true; eng.handSens[st.side] = 1.5; setMsg('Made this hand more sensitive. Try again.'); }
+        return;
+      }
+      if (st.id === 'combo') {
+        q.forEach(function (p) { R.evts.push({ side: p.side, t: p.t }); }); if (R.evts.length > 3) R.evts.splice(0, R.evts.length - 3);
+        var e = R.evts, hits = e.length === 3 && e[0].side === 'R' && e[1].side === 'R' && e[2].side === 'L' && e[2].t - e[0].t < 4500;
+        setCnt(Math.min(3, R.evts.length));
+        if (hits) go(R.idx + 1);
+        return;
+      }
+      if (st.id === 'side') {
+        var lean = s.dodge === 'L', m = q.filter(function (p) { return p.side === 'R'; }).length;
+        if (m && lean) { R.cnt += m; setCnt(R.cnt); Sfx.ding(); }
+        if (R.cnt >= st.need) go(R.idx + 1);
+      }
+    }, 100);
+    return function () { clearInterval(id); if (!R.done) FCAL.apply(eng); };
+  }, [tracker]);
+  var st = FSTEPS[Math.min(idx, FSTEPS.length - 1)], need = st.need;
+  var pips = []; for (var i = 0; i < (st.id === 'dist' ? 0 : st.id === 'combo' ? 3 : need); i++) pips.push(h('i', { key: i, className: 'fpip' + (i < cnt ? ' on' : '') }));
+  var hint = st.id === 'dist' ? (snap.status === 'move-back' ? 'Move the phone back a little so your head and both shoulders fit.' : snap.status === 'move-closer' ? 'Bring the phone a bit closer.' : snap.status === 'body' ? (snap.motion < CFG.stillMax * 1.4 ? 'Hold still…' : 'Hold still for a moment.') : 'Point the camera at your head and shoulders.') : st.hint;
+  if (res) return h('div', { className: 'screen fit calib' },
+    h('h2', { className: 'title' }, 'READY'),
+    h('div', { className: 'card slim' }, h('p', { className: 'cmsg' }, 'Right hand tuned x' + res.R.toFixed(2) + ' · Left hand tuned x' + res.L.toFixed(2)), h('p', { className: 'sub', style: { fontSize: 12 } }, 'Saved on this phone. If you move the phone or the camera, run FIGHT SETUP again from Settings.')),
+    h('div', { className: 'spacer' }), h('div', { className: 'row' }, h('button', { className: 'btn gold grow', onClick: props.onDone }, 'START')));
+  return h('div', { className: 'screen fit calib' },
+    h('h2', { className: 'title' }, 'FIGHT SETUP'),
+    h('div', { className: 'fsteps' }, FSTEPS.map(function (x, k) { return h('i', { key: x.id, className: k < idx ? 'done' : k === idx ? 'cur' : '' }); })),
+    h('div', { className: 'pvfit' }, h(Preview, { tracker: tracker })),
+    h('p', { className: 'cmsg', 'aria-live': 'polite' }, h('b', null, st.title), h('br'), hint),
+    msg ? h('p', { className: 'sub', style: { fontSize: 12, textAlign: 'center' } }, msg) : null,
+    st.id === 'dist' ? h('div', { className: 'prog' }, h('i', { style: { width: cnt * 100 + '%' } })) : h('div', { className: 'fpips' }, pips),
+    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', onClick: function () { go(idx + 1); } }, 'SKIP STEP'), h('button', { className: 'btn ghost grow', onClick: function () { R.done = true; FCAL.apply(eng); props.onDone(); } }, 'SKIP ALL')));
 }
 
 var STEPS = [
@@ -3650,7 +3734,7 @@ function Result(props) {
     game && r.outcome ? h('p', { className: 'sub center' }, r.outcome === 'win' ? 'The opponent hit the canvas. K.O.!' : 'The opponent took this one. Rematch?') : null,
     h('div', { className: 'stats' },
       stat('Time', mm + ':' + (ss < 10 ? '0' : '') + ss, 'big'), stat('Punches landed', r.hits + ' / ' + r.exec), stat('Accuracy', acc + '%'),
-      stat('Jab / Cross', (mv.jab || 0) + ' / ' + (mv.cross || 0)), stat('Hook / Uppercut', (mv.hook || 0) + ' / ' + (mv.upper || 0)),
+      stat('Jabs', (mv.jab || 0) + (mv.cross || 0)), stat('Hook / Uppercut', (mv.hook || 0) + ' / ' + (mv.upper || 0)),
       stat('Dodges', r.dodges), stat('Blocks', r.blocks), game ? stat('Hits taken', r.taken) : null),
     props.camOn ? h(HandHint, { tracker: props.tracker, text: 'Move your RIGHT hand to steer the cursor. Hold it over a button for a second to select.' }) : null,
     h('button', { className: 'btn gold', 'data-hand': '1', onClick: props.onAgain }, 'PLAY AGAIN'),
@@ -3868,21 +3952,22 @@ function App() {
   function camOff() { netRef.current.close(); tracker.releaseCamera(); setCamOn(false); setCalibrated(false); setScreen('permission'); }
   function play(m) { if (m) setGmode(m); setRound(function (r) { return r + 1; }); setScreen('match'); }
   function applyCfg(c) { saveNetCfg(c); setCfg(c); netRef.current.close(); netRef.current = makeNet(c); }
-  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
+  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && screen !== 'fightcal' && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
   var body;
   if (screen === 'permission') body = h(Permission, {
     tracker: tracker, onBack: home, invite: inviteRef.current,
     onReady: function () { tracker.startTracking(); setMode('camera'); setCamOn(true); setCalibrated(false); setScreen('calibration'); },
     onDebug: function () { tracker.releaseCamera(); setCamOn(false); setCalibrated(false); dbg.current.attach(); setMode('debug'); play('training'); }
   });
-  else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); setScreen(inviteRef.current ? 'room' : 'menu'); }, onBack: camOff });
+  else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); FCAL.load(); if (FCAL.data) { FCAL.apply(tracker.engine); setScreen(inviteRef.current ? 'room' : 'menu'); } else setScreen('fightcal'); }, onBack: camOff });
+  else if (screen === 'fightcal') body = h(FightCal, { tracker: tracker, onDone: function () { setScreen(inviteRef.current ? 'room' : 'menu'); } });
   else if (screen === 'menu') body = h(MainMenu, { tracker: tracker, camOn: camOn, k3: k3, tv: tv, onTv: toggleTv, onOnline: function () { setScreen('online'); }, onTraining: function () { play('training'); }, onSettings: function () { setScreen('settings'); } });
   else if (screen === 'online') body = h(OnlineMenu, { key: 'o' + cfg.url + cfg.kind, net: net, onPrivate: function () { setScreen('room'); }, onBack: function () { netRef.current.close(); setScreen('menu'); } });
   else if (screen === 'room') body = h(PrivateRoom, { key: 'r' + cfg.url + cfg.kind, net: net, autoJoin: inviteRef.current, onVsAi: inviteRef.current ? null : function () { netRef.current.close(); play('game'); }, onBack: function () { if (inviteRef.current) { inviteRef.current = ''; netRef.current.close(); setScreen('menu'); } else setScreen('online'); } });
   else if (screen === 'lobby') body = h(Lobby, { net: net, onLeave: function () { netRef.current.leaveRoom(); setScreen('room'); } });
   else if (screen === 'mp') body = h(MpMatch, { key: 'mp', net: net, tracker: tracker, input: input, onLeave: function () { setScreen('room'); }, onEnd: function (r) { setMpRes(r); setScreen('mpresult'); } });
   else if (screen === 'mpresult') body = h(MpResult, { result: mpRes || {}, onLobby: function () { setScreen(netRef.current.room ? 'lobby' : 'room'); }, onHome: home });
-  else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
+  else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
   else if (screen === 'punchtest') body = h(PunchTest, { tracker: tracker, onBack: function () { setScreen('settings'); } });
   else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, mode: 'settings', onDone: function () { setScreen('settings'); }, onProgress: function () { }, onBack: function () { setScreen('settings'); } });
   else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); setScreen('result'); } });
@@ -3898,7 +3983,7 @@ function App() {
   return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null);
 }
 
-window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
+window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
