@@ -162,6 +162,10 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .mpip.lowpip { top: auto; bottom: 3%; }
 .syncinfo { font: 600 11px/1.3 var(--body); color: var(--mute); }
 .syncnote { position: absolute; left: 6%; right: 6%; top: 46%; text-align: center; font: 700 14px/1.3 var(--body); color: #fff; background: rgba(10, 13, 43, 0.8); padding: 10px; border-radius: 12px; }
+.mpause { position: absolute; inset: 0; z-index: 8; background: rgba(6,6,14,.78); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; }
+.mpause b { font: 900 italic 40px/1 var(--head, inherit); letter-spacing: .06em; color: #ffd21a; text-shadow: 0 2px 0 #000; margin-bottom: 8px; }
+.mpause .btn { width: min(78%, 300px); min-height: 56px; font-size: 18px; }
+.mpause small { max-width: 80%; text-align: center; font-size: 12px; color: rgba(255,255,255,.7); }
 .mhint { position: absolute; left: 6%; right: 6%; bottom: 1.8%; text-align: center; font-size: 12px; color: rgba(255,255,255,.75); text-shadow: 0 1px 3px #000; pointer-events: none; }
 .mbar { position: absolute; left: 3%; right: 3%; bottom: 1.6%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .btn.mb { font-size: 12px; padding: 14px 4px; border-radius: 12px; min-height: 56px; background: rgba(10, 13, 43, 0.82); color: #fff; box-shadow: none; border: 2px solid var(--line); letter-spacing: 0.03em; }
@@ -3103,7 +3107,7 @@ function HowTo(props) {
         h('li', null, 'Each punch type costs stamina (jab 5, hook 13, uppercut 18; dodge 5, block 3 per second) and below 25 stamina your punches do less damage. Classification is a best-effort heuristic from one camera: when a motion is ambiguous the game ignores it instead of guessing. Add ?dev=1 to the address for the developer overlay (last move, hand states, confidence, FPS, physical versus executed punches, duplicates prevented).'),
         h('li', null, 'In a real match the opponent aims a red zone at you, locks it, then strikes. The punch only lands if your body is inside the zone: lean out of narrow shots, duck high ones, block when you cannot escape.'),
         h('li', null, 'Tracking can be lost if a hand leaves the frame. The L hand, R hand and Shoulders lights show what the camera sees, a banner appears in the match, and the fight pauses if your shoulders disappear.'),
-        h('li', null, 'Menus use a virtual cursor on your right hand, with a one-second hold to select. The cursor is off during the fight; raise both hands above your head for 1.5 seconds to finish a session.'),
+        h('li', null, 'Menus use a virtual cursor on your right hand, with a one-second hold to select. The cursor is off during the fight; raise both hands above your head for 1.5 seconds to pause and open the menu.'),
         h('li', null, 'Left and right follow your anatomy. The preview is mirrored like a mirror, and your right arm is drawn in cyan with an R label.'),
         h('li', null, 'Camera access needs HTTPS or localhost. Embedded or sandboxed views, including a Claude Artifact, can block both the camera and the model download.'))),
         h('button', { className: 'btn gold', 'data-hand': '1', onClick: props.onClose }, 'CLOSE')));
@@ -3579,7 +3583,7 @@ function MStatus(props) {
 }
 function Match(props) {
   var cv = useRef(null), ms = useState(Sfx.muted), muted = ms[0], setMuted = ms[1], ds = useState(SETTINGS.dev), dev = ds[0], setDev = ds[1];
-  var vs = useState(K3.view), view = vs[0], setView = vs[1], resetRef = useRef(null), endRef = useRef(null), DEVBAR = /[?&]dev=1/.test(location.search);
+  var pz = useState(false), paused = pz[0], setPaused = pz[1], pausedRef = useRef(false), needDown = useRef(false), vs = useState(K3.view), view = vs[0], setView = vs[1], resetRef = useRef(null), endRef = useRef(null), DEVBAR = /[?&]dev=1/.test(location.search);
   useEffect(function () {
     var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
     canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -3595,20 +3599,22 @@ function Match(props) {
     function frame(now) {
       if (dead) return;
       var dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
-      stepGame(G, dt, props.input, Sfx);
+      if (pausedRef.current) props.input.drainPunches(); else stepGame(G, dt, props.input, Sfx);
       drawScene(ctx, G, now / 1000, bg, true);
       if (G.done) finish();
       if (!props.debug) {                                  // finish gesture: both hands above the head, held for 1.5 s (punching or guarding never reaches it)
         var u = props.tracker.getUpper(), up = u.R && u.L && u.R.wry < -1.3 && u.L.wry < -1.3;
-        endT = up ? endT + dt : Math.max(0, endT - dt * 2);
+        if (!up) needDown.current = false;                  // after resuming, the hands must come down before the gesture can count again
+        endT = up && !pausedRef.current && !needDown.current ? endT + dt : Math.max(0, endT - dt * 2);
         if (endRef.current) { endRef.current.style.opacity = endT > 0.05 ? '1' : '0'; endRef.current.firstChild.style.width = Math.min(100, endT / 1.5 * 100) + '%'; }
-        if (endT >= 1.5) finish();
+        if (endT >= 1.5 && !pausedRef.current) { endT = 0; pausedRef.current = true; setPaused(true); if (props.onPause) props.onPause(true); }                  // both hands up: pause and open the menu
       }
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
-    return function () { dead = true; clearTimeout(neutralT); cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); };
+    return function () { dead = true; clearTimeout(neutralT); cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); if (props.onPause) props.onPause(false); };
   }, []);
+  function resume() { pausedRef.current = false; needDown.current = true; setPaused(false); if (props.onPause) props.onPause(false); props.input.drainPunches(); }
   var btn = function (label, fn, cls, pressed) { return h('button', { className: 'btn mb ' + (cls || ''), 'data-hand': '1', onClick: fn, 'aria-pressed': pressed }, label); };
   return h('div', { className: 'mfs' },
     h('div', { className: 'mwrap' },
@@ -3618,11 +3624,17 @@ function Match(props) {
         : h('div', { className: 'mpip' }, h(Preview, { tracker: props.tracker, fixed: true }), h(MStatus, { tracker: props.tracker })),
       dev && !props.debug ? h('div', { className: 'mdev' }, h(DevPanel, { tracker: props.tracker })) : null,
       h('div', { className: 'mend', ref: endRef }, h('i')),
+      paused ? h('div', { className: 'mpause', role: 'dialog', 'aria-label': 'Paused' },
+        h('b', null, 'PAUSED'),
+        h('button', { className: 'btn gold', 'data-hand': '1', onClick: resume }, 'RESUME'),
+        h('button', { className: 'btn', 'data-hand': '1', onClick: function () { props.onSettings && props.onSettings(); } }, 'SETTINGS'),
+        h('button', { className: 'btn ghost', 'data-hand': '1', onClick: props.onQuit }, 'MAIN MENU'),
+        h('small', null, 'Settings and Main Menu leave this match. Move your right hand to steer the cursor and hold it over a button.')) : null,
       DEVBAR ? h('div', { className: 'mbar' },
         btn('RESET', function () { resetRef.current && resetRef.current(); }, 'gold'),
         btn('VIEW: ' + VIEWS[view].label, function () { setView(K3.nextView()); }),
         props.debug ? null : btn(dev ? 'HIDE TUNE' : 'TUNE', function () { SETTINGS.dev = !dev; setDev(!dev); }, '', dev),
-        btn('MENU', props.onQuit)) : h('div', { className: 'mhint' }, props.debug ? 'Press Q to finish' : (props.mode === 'game' ? 'Quit: raise both hands above your head for 1.5 s' : 'Finish: raise both hands above your head for 1.5 s'))));
+        btn('MENU', props.onQuit)) : h('div', { className: 'mhint' }, props.debug ? 'Press Q to finish' : 'Pause: raise both hands above your head for 1.5 s')));
 }
 
 function Result(props) {
@@ -3814,7 +3826,7 @@ function App() {
   var s9 = useState(loadNetCfg), cfg = s9[0], setCfg = s9[1];
   var s10 = useState(null), mpRes = s10[0], setMpRes = s10[1];
   var s11 = useState(function () { try { return localStorage.getItem('mb.tv') === '1'; } catch (e) { return false; } }), tv = s11[0], setTv = s11[1];
-  var s12 = useState(0), setVp = s12[1];
+  var s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
   useEffect(function () {                                                      // follow rotation / resizing (landscape for a TV)
     var f = function () { setVp(function (n) { return n + 1; }); };
     window.addEventListener('resize', f); window.addEventListener('orientationchange', f);
@@ -3853,7 +3865,7 @@ function App() {
   function camOff() { netRef.current.close(); tracker.releaseCamera(); setCamOn(false); setCalibrated(false); setScreen('permission'); }
   function play(m) { if (m) setGmode(m); setRound(function (r) { return r + 1; }); setScreen('match'); }
   function applyCfg(c) { saveNetCfg(c); setCfg(c); netRef.current.close(); netRef.current = makeNet(c); }
-  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && screen !== 'mp' && (screen !== 'match' || /[?&]dev=1/.test(location.search));
+  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
   var body;
   if (screen === 'permission') body = h(Permission, {
     tracker: tracker, onBack: home, invite: inviteRef.current,
@@ -3870,7 +3882,7 @@ function App() {
   else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
   else if (screen === 'punchtest') body = h(PunchTest, { tracker: tracker, onBack: function () { setScreen('settings'); } });
   else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, mode: 'settings', onDone: function () { setScreen('settings'); }, onProgress: function () { }, onBack: function () { setScreen('settings'); } });
-  else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); setScreen('result'); } });
+  else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); setScreen('result'); } });
   else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: function () { play(); }, onHome: home });
   /* TV / landscape: the phone sideways (or TV mode on). Menus keep their portrait layout, scaled to the full height of the screen and centred on a blurred copy of the street photo,
      so a TV mirror has no black bars. The match canvas is already full height; its camera preview moves to the side. */
@@ -3880,7 +3892,7 @@ function App() {
   if (stage && !full && !own) { var sc = Math.min(vh / 700, vw / 390); content = h('div', { className: 'stagebox', style: { width: 390, height: 700, transform: 'scale(' + sc + ')', left: (vw - 390 * sc) / 2, top: (vh - 700 * sc) / 2 } }, body); }
   var bgUrl = typeof ARENA_BG_B64 !== 'undefined' ? 'url(data:image/png;base64,' + ARENA_BG_B64 + ')' : 'none';
   if (!full) content = h('div', { className: 'fgm' }, content);
-  return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, stage && !landscape ? h('div', { className: 'tvhint' }, 'TV MODE: turn your phone sideways (switch off Portrait Lock) so it fills the TV') : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' }) : null);
+  return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null);
 }
 
 window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
