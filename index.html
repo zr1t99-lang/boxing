@@ -180,6 +180,40 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .hand-cursor .dot { fill: var(--gold); stroke: #0a0d2b; stroke-width: 2; }
 .btn.hand-hover { outline: 4px solid var(--cyan); outline-offset: 4px; transform: scale(1.03); }
 @media (prefers-reduced-motion: reduce) { .btn { transition: none; } .prog > i { transition: none; } }
+
+/* one-screen layouts: nothing here scrolls, messages sit at the top */
+.screen.fit { padding-bottom: 6px; height: calc(100vh - 24px); height: calc(100dvh - 24px); min-height: 0; overflow: hidden; justify-content: flex-start; gap: 10px; }
+.logo.sm { font-size: clamp(32px, 9.5vw, 52px); flex: none; }
+.herowrap { flex: 1 1 0; min-height: 0; display: flex; justify-content: center; }
+.screen.fit .hero { width: auto; height: 100%; max-width: 100%; margin: 0 auto; }
+.screen.fit .modes { gap: 10px; flex: none; }
+.screen.fit .btn.big { min-height: 70px; font-size: 24px; }
+.screen.fit .btn.big small { font-size: 11px; }
+.hint1 { display: flex; align-items: center; gap: 10px; flex: none; }
+.hint1 .sub { font-size: 13px; line-height: 1.3; }
+.pip-prev.mini { width: 72px; }
+.pip-prev.mini .preview { height: 54px; border-radius: 10px; }
+.row.center { justify-content: center; flex: none; }
+.modal { position: fixed; inset: 0; z-index: 40; background: rgba(4, 6, 24, 0.92); display: flex; justify-content: center; align-items: flex-start; padding: 16px; overflow-y: auto; }
+.modal .sheet { max-width: 540px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
+.topmsg { flex: none; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.topmsg .kicker { font: 400 12px/1 var(--display); letter-spacing: 0.08em; color: var(--gold); }
+.topmsg .msg { font: 700 19px/1.25 var(--body); color: var(--ink); text-wrap: balance; }
+.pvfit { flex: 1 1 0; min-height: 0; display: flex; justify-content: center; }
+.pvfit .preview { height: 100%; width: auto; max-width: 100%; }
+.screen.fit .card.slim { flex: none; padding: 10px 14px; gap: 8px; }
+.screen.fit .vps { flex: none; }
+.duo.fit { flex: 1 1 0; min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+.duo.fit .preview { aspect-ratio: auto !important; height: 100%; width: 100%; }
+.duo.fit canvas { height: 100%; width: 100%; aspect-ratio: auto; object-fit: contain; min-height: 0; }
+.dots { display: flex; gap: 8px; justify-content: center; flex: none; }
+.dots i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 400 13px/1 var(--display); font-style: normal; background: rgba(255, 255, 255, 0.1); color: var(--mute); border: 2px solid transparent; }
+.dots i.cur { background: var(--gold); color: #2a1d00; }
+.dots i.done { background: var(--mint); color: #05301a; }
+.screen.fit .row { flex: none; flex-wrap: nowrap; }
+.screen.fit .row .btn { font-size: 16px; padding: 12px 12px; white-space: nowrap; }
+.screen.fit .row .btn.ghost { font-size: 12px; padding: 12px 10px; }
+.screen.fit .row.center .btn.ghost { font-size: 13px; }
 </style>
 </head>
 <body>
@@ -2209,24 +2243,32 @@ function HandHint(props) {
 }
 
 function StartScreen(props) {
-  return h('div', { className: 'screen' },
-    h('h1', { className: 'logo' }, 'Motion Boxing'),
-    h(HeroCanvas),
-    h('p', { className: 'sub center' }, 'Prop your phone up close: your upper body is the controller.'),
-    h('div', { className: 'how' },
-      h('div', null, h('b', null, 'PUNCH'), 'Jab and cross: snap an arm straight out. Hook: sweep it sideways. Uppercut: drive it up from low'),
-      h('div', null, h('b', null, 'MOVE'), 'Lean your upper body, out of the red zones'),
-      h('div', null, h('b', null, 'DUCK'), 'Drop your head under high shots'),
-      h('div', null, h('b', null, 'BLOCK'), 'Both fists up at your face')),
-    props.camOn ? h(HandHint, { tracker: props.tracker, text: 'Camera is on. Raise your RIGHT hand, move the cursor over START GAME or TRAINING and hold it there for a second.' }) : null,
-    props.k3 === 'error' ? h('p', { className: 'sub center', style: { color: 'var(--red)' } }, 'Khalid\u2019s 3D model could not load: ' + K3.error + '. Training will use the basic avatar and say so on screen.') : null,
-    props.k3 === 'loading' || props.k3 === 'idle'
+  var os = useState(false), open = os[0], setOpen = os[1];
+  var loading = props.k3 === 'loading' || props.k3 === 'idle';
+  return h('div', { className: 'screen fit' },
+    h('h1', { className: 'logo sm' }, 'Motion Boxing'),
+    h('div', { className: 'herowrap' }, h(HeroCanvas)),
+    props.camOn ? h('div', { className: 'hint1' }, h('div', { className: 'pip-prev mini' }, h(Preview, { tracker: props.tracker, fixed: true })), h('p', { className: 'sub' }, 'Camera is on. Raise your RIGHT hand and hold the cursor over a button for a second.')) : null,
+    props.k3 === 'error' ? h('p', { className: 'sub center', style: { color: 'var(--red)', flex: 'none', fontSize: 12 } }, 'Khalid\u2019s 3D model could not load: ' + K3.error + '. Training will use the basic avatar and say so on screen.') : null,
+    loading
       ? h('button', { className: 'btn gold', disabled: true }, 'LOADING KHALID…')
       : h('div', { className: 'modes' },
           h('button', { className: 'btn gold big', 'data-hand': '1', onClick: function () { props.onStart('game'); } }, h('span', null, 'START GAME'), h('small', null, 'Real match: health, stamina, K.O.')),
           h('button', { className: 'btn big', 'data-hand': '1', onClick: function () { props.onStart('training'); } }, h('span', null, 'TRAINING'), h('small', null, 'Punching bag: no blocks, no dodges'))),
-    props.camOn ? h('button', { className: 'btn ghost', onClick: props.onCamOff }, 'TURN CAMERA OFF') : null,
-    h('details', { className: 'dev' },
+    h('div', { className: 'row center' },
+      h('button', { className: 'btn ghost', onClick: function () { setOpen(true); } }, 'HOW TO PLAY'),
+      props.camOn ? h('button', { className: 'btn ghost', onClick: props.onCamOff }, 'TURN CAMERA OFF') : null),
+    open ? h('div', { className: 'modal', role: 'dialog', 'aria-label': 'How to play' },
+      h('div', { className: 'sheet' },
+        h('h2', { className: 'title' }, 'How to play'),
+        h('p', { className: 'sub' }, 'Prop your phone up close: your upper body is the controller.'),
+        h('div', { className: 'how' },
+          h('div', null, h('b', null, 'PUNCH'), 'Jab and cross: snap an arm straight out. Hook: sweep it sideways. Uppercut: drive it up from low'),
+          h('div', null, h('b', null, 'MOVE'), 'Lean your upper body, out of the red zones'),
+          h('div', null, h('b', null, 'DUCK'), 'Drop your head under high shots'),
+          h('div', null, h('b', null, 'BLOCK'), 'Both fists up at your face')),
+        h('p', { className: 'sub' }, 'In a match, turns last five seconds: ATTACK (you punch) and DEFEND (the opponent attacks; a successful dodge gives you one counter punch).'),
+        h('details', { className: 'dev' },
       h('summary', null, 'Developer notes and limits'),
       h('ul', null,
         h('li', null, 'Khalid is a rigged Mixamo-skeleton model rendered with Three.js. Your tracked elbows and wrists aim his arm bones continuously; lean, shoulder tilt and head tilt drive his spine and neck. Short animation accents (jab, hook and hit-reaction clips, block hunch) are blended on top as small deltas and never replace your live pose. The opponent is a second, independent copy of the same model driven by the game AI, not by your camera. In TRAINING it never attacks and nobody can lose; in START GAME the match ends on a K.O.'),
@@ -2239,7 +2281,8 @@ function StartScreen(props) {
         h('li', null, 'Tracking can be lost if a hand leaves the frame. The L hand, R hand and Shoulders lights show what the camera sees, a banner appears in the match, and the fight pauses if your shoulders disappear.'),
         h('li', null, 'Menus use a virtual cursor on your right hand, with a one-second hold to select. The cursor is off during the fight; raise both hands above your head for 1.5 seconds to finish a session.'),
         h('li', null, 'Left and right follow your anatomy. The preview is mirrored like a mirror, and your right arm is drawn in cyan with an R label.'),
-        h('li', null, 'Camera access needs HTTPS or localhost. Embedded or sandboxed views, including a Claude Artifact, can block both the camera and the model download.'))));
+        h('li', null, 'Camera access needs HTTPS or localhost. Embedded or sandboxed views, including a Claude Artifact, can block both the camera and the model download.'))),
+        h('button', { className: 'btn gold', 'data-hand': '1', onClick: function () { setOpen(false); } }, 'CLOSE'))) : null);
 }
 
 function Permission(props) {
@@ -2271,14 +2314,15 @@ function Permission(props) {
   var step = function (label, state) { return h('li', null, h('span', { className: 'lamp' + (state === 'ok' ? ' on' : '') }), h('div', { className: 'txt' }, label)); };
   return h('div', { className: 'screen' },
     h('h2', { className: 'title' }, 'Camera access'),
+    busy || err ? h('div', { className: 'topmsg' },
+      busy ? h('p', { className: 'msg' }, phase === 'camera' ? 'Waiting for camera permission…' : 'Loading the pose model…') : null,
+      err ? h('div', { role: 'alert' }, h('p', { className: 'msg', style: { color: 'var(--red)' } }, err.message), h('p', { className: 'sub' }, advice[err.code] || ''),
+        inFrame ? h('p', { className: 'sub', style: { marginTop: 8 } }, 'This page is running inside an embedded frame. Sandboxed frames such as a Claude Artifact refuse camera access without a prompt, and may block the model download. Open the standalone motion-boxing.html file from localhost or an HTTPS host to use the camera.') : null) : null) : null,
     h('div', { className: 'card' },
       h('p', null, 'Motion Boxing reads your body pose from the front camera. Everything runs in this browser tab. No video is recorded or uploaded.'),
       h('ul', { className: 'steps' },
         step('Camera permission', phase === 'model' ? 'ok' : phase === 'camera' ? 'wait' : 'idle'),
         step('Load pose model (about 6 MB)', phase === 'model' ? 'wait' : 'idle')),
-      busy ? h('p', { className: 'sub' }, phase === 'camera' ? 'Waiting for camera permission…' : 'Loading the pose model…') : null,
-      err ? h('div', { className: 'note bad', role: 'alert' }, h('b', null, err.message + ' '), advice[err.code] || '',
-        inFrame ? h('p', { style: { marginTop: 8 } }, 'This page is running inside an embedded frame. Sandboxed frames such as a Claude Artifact refuse camera access without a prompt, and may block the model download. Open the standalone motion-boxing.html file from localhost or an HTTPS host to use the camera.') : null) : null,
       h('div', { className: 'row' },
         h('button', { className: 'btn gold grow', onClick: go, disabled: busy }, err ? 'TRY AGAIN' : 'ENABLE CAMERA'))),
     h('div', { className: 'card' },
@@ -2305,27 +2349,26 @@ function Calibration(props) {
     : snap.status === 'hands-missing' ? 'Raise both fists into view, like a boxing guard.'
     : snap.status === 'body' ? (snap.motion < CFG.stillMax ? 'Hold still…' : 'Hold still for a moment.')
     : 'Point the front camera at your head and shoulders.';
-  return h('div', { className: 'screen' },
-    h('h2', { className: 'title' }, 'Upper-body setup'),
-    h('p', { className: 'sub' }, 'Prop the phone at arm’s length or closer. Show your head, shoulders and both fists. Your legs do not need to be in view.'),
-    h(Preview, { tracker: tracker },
+  return h('div', { className: 'screen fit' },
+    h('div', { className: 'topmsg' },
+      h('div', { className: 'kicker' }, 'UPPER-BODY SETUP'),
+      h('p', { className: 'msg', 'aria-live': 'polite' }, hint),
+      h('div', { className: 'row between' }, h(StatusChip, { status: snap.status }), h('span', { className: 'sub' }, snap.fps ? snap.fps + ' fps' : ''))),
+    h(VisPips, { snap: snap }),
+    h('div', { className: 'pvfit' }, h(Preview, { tracker: tracker },
       h('svg', { className: 'guide', viewBox: '0 0 100 100', preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' },
         h('g', { fill: 'none', stroke: '#fff', strokeOpacity: 0.65, strokeWidth: 0.7, strokeDasharray: '2.5 2' },
           h('ellipse', { cx: 50, cy: 30, rx: 9, ry: 11 }),
           h('path', { d: 'M18 100 L18 66 Q18 52 34 49 L66 49 Q82 52 82 66 L82 100' }),
           h('circle', { cx: 36, cy: 44, r: 6 }), h('circle', { cx: 64, cy: 44, r: 6 }))),
-      h('span', { className: 'tag' }, 'MIRRORED')),
-    h('div', { className: 'row between' }, h(StatusChip, { status: snap.status }), h('span', { className: 'sub' }, snap.fps ? snap.fps + ' fps' : '')),
-    h(VisPips, { snap: snap }),
-    h('div', { className: 'card' },
-      h('p', null, hint),
-      h('div', null,
-        h('div', { className: 'meter', 'aria-label': 'Distance' },
-          h('div', { className: 'zone', style: { left: (CFG.farFrac / max * 100) + '%', width: ((CFG.closeFrac - CFG.farFrac) / max * 100) + '%' } }),
-          h('div', { className: 'mk', style: { left: clamp(frac / max, 0, 1) * 100 + '%' } })),
-        h('div', { className: 'meterlbl' }, h('span', null, 'too far'), h('span', null, 'good distance'), h('span', null, 'too close'))),
+      h('span', { className: 'tag' }, 'MIRRORED'))),
+    h('div', { className: 'card slim' },
+      h('div', { className: 'meter', 'aria-label': 'Distance' },
+        h('div', { className: 'zone', style: { left: (CFG.farFrac / max * 100) + '%', width: ((CFG.closeFrac - CFG.farFrac) / max * 100) + '%' } }),
+        h('div', { className: 'mk', style: { left: clamp(frac / max, 0, 1) * 100 + '%' } })),
+      h('div', { className: 'meterlbl' }, h('span', null, 'too far'), h('span', null, 'good distance'), h('span', null, 'too close')),
       h('div', { className: 'prog', 'aria-label': 'Calibration progress' }, h('i', { style: { width: prog * 100 + '%' } }))),
-    h('div', { className: 'row' }, h('button', { className: 'btn ghost', onClick: props.onBack }, 'BACK')));
+    h('div', { className: 'row' }, h('button', { className: 'btn ghost', 'data-hand': '1', onClick: props.onBack }, 'BACK')));
 }
 
 var STEPS = [
@@ -2354,36 +2397,26 @@ function Tutorial(props) {
   var all = idx >= STEPS.length, lean = clamp((snap.lean || 0) / 0.25, -1, 1);
   useEffect(function () { if (props.onProgress) props.onProgress(all); }, [all]);
   var last = snap.last && performance.now() - snap.lastAt < 1500 ? snap.last : '';
-  return h('div', { className: 'screen' },
-    h('h2', { className: 'title' }, 'Movement check'),
-    h('p', { className: 'sub' }, 'Khalid on the right copies you live. Move your hands slowly and watch his arms follow.'),
-    h('div', { className: 'duo' },
+  var cur = STEPS[Math.min(idx, STEPS.length - 1)];
+  return h('div', { className: 'screen fit' },
+    h('div', { className: 'topmsg' },
+      h('div', { className: 'kicker' }, all ? 'MOVEMENT CHECK COMPLETE' : 'MOVEMENT CHECK  ' + (idx + 1) + ' / ' + STEPS.length),
+      h('p', { className: 'msg', 'aria-live': 'polite' }, all ? 'All set. Hold your right hand over START for a second.' : cur.label + '. ' + cur.hint + '.'),
+      h('div', { className: 'row between' }, h(StatusChip, { status: snap.status }), h('span', { className: 'gest' }, last))),
+    h(VisPips, { snap: snap }),
+    h('div', { className: 'duo fit' },
       h(Preview, { tracker: tracker, fixed: true }, h('span', { className: 'tag' }, 'MIRRORED')),
       h(MirrorCanvas, { input: tracker })),
-    h('div', { className: 'row between' }, h(StatusChip, { status: snap.status }), h('span', { className: 'gest' }, last)),
-    h(VisPips, { snap: snap }),
-    h('ul', { className: 'steps' }, STEPS.map(function (s, i) {
-      var cur = i === idx, live = cur && s.test(snap);
-      return h('li', { key: i, className: done[i] ? 'done' : cur ? 'cur' : '' },
-        h('span', { className: 'mark' }, done[i] ? '✓' : String(i + 1)),
-        h('div', { className: 'txt' }, s.label, h('small', null, done[i] ? 'Detected' : s.hint)),
-        h('span', { className: 'lamp' + (done[i] || live ? ' on' : ''), title: 'Live detection' }));
-    })),
-    h('div', { className: 'card' },
-      h('div', { className: 'meter', 'aria-label': 'Lean' },
-        h('div', { className: 'mid' }),
-        h('div', { className: 'th', style: { left: 50 - (snap.thr || 6.5) / 25 * 50 + '%' } }), h('div', { className: 'th', style: { left: 50 + (snap.thr || 6.5) / 25 * 50 + '%' } }),
-        h('div', { className: 'mk', style: { left: 50 + lean * 50 + '%' } })),
-      h('div', { className: 'meterlbl' }, h('span', null, 'left'), h('span', null, 'centre'), h('span', null, 'right')),
-      h('div', { className: 'prog', 'aria-label': 'Duck' }, h('i', { style: { width: (snap.duck || 0) * 100 + '%' } })),
-      h('div', { className: 'meterlbl' }, h('span', null, 'standing'), h('span', null, 'ducking')),
-      h('p', { className: 'sub' }, 'Bonus: bend your elbows, then snap an arm out. Punches and blocks show up next to the status light.')),
-    h('details', { className: 'dev', open: SETTINGS.dev }, h('summary', null, 'Tune dodge and punch sensitivity'), h(DevPanel, { tracker: tracker })),
+    h('div', { className: 'dots', 'aria-label': 'Steps' }, STEPS.map(function (s, i) { return h('i', { key: i, className: done[i] ? 'done' : i === idx ? 'cur' : '', title: s.label }, done[i] ? '\u2713' : String(i + 1)); })),
+    h('div', { className: 'meter', 'aria-label': 'Lean' },
+      h('div', { className: 'mid' }),
+      h('div', { className: 'th', style: { left: 50 - (snap.thr || 6.5) / 25 * 50 + '%' } }), h('div', { className: 'th', style: { left: 50 + (snap.thr || 6.5) / 25 * 50 + '%' } }),
+      h('div', { className: 'mk', style: { left: 50 + lean * 50 + '%' } })),
+    SETTINGS.dev ? h('details', { className: 'dev', open: true }, h('summary', null, 'Tune dodge and punch sensitivity'), h(DevPanel, { tracker: tracker })) : null,
     h('div', { className: 'row' },
-      h('button', { className: 'btn ghost', onClick: props.onBack }, 'RECALIBRATE'),
+      h('button', { className: 'btn ghost', 'data-hand': '1', onClick: props.onBack }, 'RECALIBRATE'),
       h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: props.onDone, disabled: !all }, all ? (props.mode === 'game' ? 'START GAME' : 'START TRAINING') : 'DO ALL 5 MOVES'),
-      !all ? h('button', { className: 'btn ghost', onClick: props.onDone }, 'SKIP') : null),
-    all ? h('p', { className: 'sub center' }, 'Tip: hold your right hand over START TRAINING for a second to begin hands-free.') : null);
+      !all ? h('button', { className: 'btn ghost', 'data-hand': '1', onClick: props.onDone }, 'SKIP') : null));
 }
 
 function CamStrip(props) {
@@ -2513,7 +2546,7 @@ function App() {
   function camOff() { tracker.releaseCamera(); setCamOn(false); setCalibrated(false); }
   function play() { setRound(function (r) { return r + 1; }); setScreen('match'); }
   function start(m) { setGmode(m === 'game' ? 'game' : 'training'); Sfx.init(); if (camOn && calibrated) play(); else if (camOn) setScreen('calibration'); else setScreen('permission'); }
-  var cursorOn = camOn && mode === 'camera' && (screen === 'start' || screen === 'result' || (screen === 'match' && /[?&]dev=1/.test(location.search)) || (screen === 'tutorial' && tutDone));
+  var cursorOn = camOn && mode === 'camera' && (screen === 'start' || screen === 'result' || screen === 'calibration' || screen === 'tutorial' || (screen === 'match' && /[?&]dev=1/.test(location.search)));
   var body;
   if (screen === 'start') body = h(StartScreen, { tracker: tracker, camOn: camOn, k3: k3, onStart: start, onCamOff: camOff });
   else if (screen === 'permission') body = h(Permission, {
