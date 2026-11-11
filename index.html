@@ -38,7 +38,9 @@ body {
 h1, h2, h3, p { margin: 0; }
 :focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
 
-.stagebg { position: fixed; inset: -4%; background-size: cover; background-position: center; filter: blur(22px) brightness(0.45) saturate(1.1); z-index: 0; }
+.stagebg { position: fixed; inset: -2%; background-size: cover; background-position: center; filter: blur(3px) brightness(0.72) saturate(1.15); z-index: 0; }
+.stagevig { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(120% 100% at 50% 50%, rgba(0,0,0,0) 45%, rgba(0,0,0,.55) 100%); }
+.stage .mcv { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%); }
 .stagebox { position: fixed; transform-origin: 0 0; padding: 12px 16px; z-index: 1; overflow: hidden; }
 .stagebox .screen { min-height: 676px; }
 .stagebox .screen.fit { height: 676px; min-height: 0; }
@@ -2036,7 +2038,7 @@ function k3OptsRemote(G, time) {
 K3.draw = function (ctx, G, time) {
   if (K3.status !== 'ready') return false;
   try {
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    var dpr = mbDpr();
     if (K3.dpr !== dpr) { K3.dpr = dpr; K3.renderer.setSize(Math.round(W * dpr), Math.round(H * dpr), false); K3.camera.aspect = W / H; K3.camera.updateProjectionMatrix(); }
     var rig = K3.rig.pose(k3Opts(G, time)), i, q;
     for (i = 0; i < rig.n; i++) { q = rig.q[i]; K3.bones[i].quaternion.set(q[0], q[1], q[2], q[3]); }
@@ -2065,6 +2067,7 @@ function useK3() {
 /* ======================================================================
    GAME STATE + RULES
    ====================================================================== */
+function mbDpr() { var st = false; try { st = document.documentElement.classList.contains('stage'); } catch (e) { } return Math.min(window.devicePixelRatio || 1, st ? 2 : 1.5); }          // TV / sideways: render sharper
 var W = 480, H = 853;                       // 9:16 portrait frame
 var SS = 1, STX = 0, STY = 130;             // the 480x640 arena geometry sits 130 px lower in the taller frame
 var ARM0 = { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0 };   // neutral boxing guard
@@ -2962,7 +2965,7 @@ function VisPips(props) {
 function HeroCanvas() {
   var cv = useRef(null);
   useEffect(function () {
-    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
     canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame('game'), raf = 0, last = performance.now(), nextPunch = 1, side = 'R', atk = 0, lastState = 'idle', pk = 0;
     G.phase = 'fight';
@@ -3203,7 +3206,7 @@ function FgHero() {
     function frame(now) {
       raf = requestAnimationFrame(frame);
       if (now - last < 32) return; last = now;
-      var r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { width: 300, height: 400 }, dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      var r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { width: 300, height: 400 }, dpr = mbDpr();
       var w = Math.max(2, Math.round(r.width * dpr)), hh = Math.max(2, Math.round(r.height * dpr));
       if (canvas.width !== w || canvas.height !== hh) { canvas.width = w; canvas.height = hh; }
       ctx.clearRect(0, 0, w, hh);
@@ -3562,7 +3565,7 @@ function Match(props) {
   var cv = useRef(null), ms = useState(Sfx.muted), muted = ms[0], setMuted = ms[1], ds = useState(SETTINGS.dev), dev = ds[0], setDev = ds[1];
   var vs = useState(K3.view), view = vs[0], setView = vs[1], resetRef = useRef(null), endRef = useRef(null), DEVBAR = /[?&]dev=1/.test(location.search);
   useEffect(function () {
-    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
     canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame(props.mode), raf = 0, last = performance.now(), dead = false, endT = 0, ended = false;
     function finish() { if (ended) return; ended = true; props.onEnd(summarize(G)); }
@@ -3649,7 +3652,7 @@ function mpHit(G, ev, me, fx, time) {
 function MpMatch(props) {
   var net = props.net, cv = useRef(null), endRef = useRef(null), k3 = useK3(), cs = useState(true), conn = cs[0], setConn = cs[1];
   useEffect(function () {
-    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
     canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var room = net.room, me = room ? room.you : 0, mine = room && room.players.filter(function (p) { return p.slot === me; })[0], opp = room && room.players.filter(function (p) { return p.slot !== me; })[0];
     HUDN = { L: String(mine ? mine.name : 'YOU').toUpperCase().slice(0, 12), R: String(opp ? opp.name : 'OPPONENT').toUpperCase().slice(0, 12) };
@@ -3733,7 +3736,7 @@ function SyncTest(props) {
   var net = props.net, cv = useRef(null), ss = useState({ status: 'empty', rate: 0, delay: 0, rtt: null, sent: 0, gaps: 0, late: 0, punches: 0, lost: false }), st = ss[0], setSt = ss[1], k3 = useK3();
   var room = net.room, other = room && room.players.filter(function (p) { return p.slot !== room.you; })[0];
   useEffect(function () {
-    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
     canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame('training'), raf = 0, last = performance.now(), dead = false, punchId = 0, sentPunches = 0, gotPunches = 0, buf = new Pose.Buffer();
     G.sync = true; G.remote = { pose: null, status: 'empty' };
@@ -3861,7 +3864,7 @@ function App() {
   if (stage && !full && !own) { var sc = Math.min(vh / 700, vw / 390); content = h('div', { className: 'stagebox', style: { width: 390, height: 700, transform: 'scale(' + sc + ')', left: (vw - 390 * sc) / 2, top: (vh - 700 * sc) / 2 } }, body); }
   var bgUrl = typeof ARENA_BG_B64 !== 'undefined' ? 'url(data:image/png;base64,' + ARENA_BG_B64 + ')' : 'none';
   if (!full) content = h('div', { className: 'fgm' }, content);
-  return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, stage && !landscape ? h('div', { className: 'tvhint' }, 'TV MODE: turn your phone sideways (switch off Portrait Lock) so it fills the TV') : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' }) : null);
+  return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, stage && !landscape ? h('div', { className: 'tvhint' }, 'TV MODE: turn your phone sideways (switch off Portrait Lock) so it fills the TV') : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' }) : null);
 }
 
 window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
