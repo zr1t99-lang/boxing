@@ -40,13 +40,16 @@ h1, h2, h3, p { margin: 0; }
 
 .stagebg { position: fixed; inset: -2%; background-size: cover; background-position: center; filter: blur(3px) brightness(0.72) saturate(1.15); z-index: 0; }
 .stagevig { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(120% 100% at 50% 50%, rgba(0,0,0,0) 45%, rgba(0,0,0,.55) 100%); }
-.stage .mcv { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 4%, #000 96%, transparent 100%); }
 .stagebox { position: fixed; transform-origin: 0 0; padding: 12px 16px; z-index: 1; overflow: hidden; }
 .stagebox .screen { min-height: 676px; }
 .stagebox .screen.fit { height: 676px; min-height: 0; }
 .stage .mfs { background: transparent; }
-.stage .mpip { position: fixed; left: 2vw; right: auto; top: 3vh; width: min(22vw, 28vh); }
-.stage .mpip.lowpip { top: 3vh; bottom: auto; }
+.stage .mwrap { width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; aspect-ratio: auto; }
+.stage .mcv { object-fit: contain; }
+.stage .mpip { position: fixed; left: 1.5vw; right: auto; top: auto; bottom: 3vh; width: min(15vw, 24vh); }
+.stage .mpip.lowpip { top: auto; bottom: 3vh; }
+.stage .mend { left: 30%; right: 30%; }
+.stage .mhint { left: 20%; right: 20%; }
 .tvhint { position: fixed; left: 8px; right: 8px; top: 8px; z-index: 60; text-align: center; font: 700 13px/1.3 var(--body); color: #2a1d00; background: var(--gold); border-radius: 12px; padding: 9px 12px; pointer-events: none; }
 .tvbtn { position: absolute; right: 0; top: 0; z-index: 3; padding: 7px 11px !important; font-size: 12px !important; border-radius: 999px !important; min-height: 0; }
 .tvbtn.on { background: var(--gold); color: #2a1d00; border-color: transparent; }
@@ -1332,8 +1335,12 @@ function mapCamError(e) {
   return mkErr('camera', 'The camera could not be started.', e);
 }
 
+var CAMPREF = { v: 'auto' };
+try { var cp0 = localStorage.getItem('mb.cam'); if (cp0 === 'user' || cp0 === 'environment' || cp0 === 'auto') CAMPREF.v = cp0; } catch (e) { }
+function setCamPref(v) { CAMPREF.v = v; try { localStorage.setItem('mb.cam', v); } catch (e) { } }
+function desiredFacing() { return CAMPREF.v === 'environment' ? 'environment' : 'user'; }          // front camera by default; the TV button (or Settings) picks the rear one
 function Tracker() {
-  this.facing = 'user'; try { if (localStorage.getItem('mb.tv') === '1') this.facing = 'environment'; } catch (e) { }          // TV mode: rear camera
+  this.facing = desiredFacing();                                  // sideways (TV) uses the rear camera, upright the front one, unless the player chose
   this.video = document.createElement('video');
   this.video.setAttribute('playsinline', '');
   this.video.muted = true; this.video.autoplay = true;
@@ -2080,7 +2087,7 @@ K3.draw = function (ctx, G, time) {
   if (K3.status !== 'ready') return false;
   try {
     var dpr = mbDpr();
-    if (K3.dpr !== dpr) { K3.dpr = dpr; K3.renderer.setSize(Math.round(W * dpr), Math.round(H * dpr), false); K3.camera.aspect = W / H; K3.camera.updateProjectionMatrix(); }
+    if (K3.dpr !== dpr || K3.fw !== W) { K3.dpr = dpr; K3.fw = W; K3.renderer.setSize(Math.round(W * dpr), Math.round(H * dpr), false); K3.camera.aspect = W / H; K3.camera.updateProjectionMatrix(); }
     var rig = K3.rig.pose(k3Opts(G, time)), i, q;
     for (i = 0; i < rig.n; i++) { q = rig.q[i]; K3.bones[i].quaternion.set(q[0], q[1], q[2], q[3]); }
     K3.bones[0].position.set(rig.hips[0], rig.hips[1], rig.hips[2]);
@@ -2094,7 +2101,7 @@ K3.draw = function (ctx, G, time) {
       }
     }
     K3.renderer.render(K3.scene, K3.camera);
-    ctx.drawImage(K3.canvas, 0, -STY, W, H);           // drawScene is inside translate(STX, STY): undo it so the model fills the whole frame
+    ctx.drawImage(K3.canvas, -STX, -STY, W, H);           // drawScene is inside translate(STX, STY): undo it so the model fills the whole frame
     return true;
   } catch (e) { K3.status = 'error'; K3.error = 'Rendering failed: ' + (e && e.message); return false; }
 };
@@ -2108,9 +2115,17 @@ function useK3() {
 /* ======================================================================
    GAME STATE + RULES
    ====================================================================== */
-function mbDpr() { var st = false; try { st = document.documentElement.classList.contains('stage'); } catch (e) { } return Math.min(window.devicePixelRatio || 1, st ? 2 : 1.5); }          // TV / sideways: render sharper
-var W = 480, H = 853;                       // 9:16 portrait frame
-var SS = 1, STX = 0, STY = 130;             // the 480x640 arena geometry sits 130 px lower in the taller frame
+function mbDpr() { var st = false; try { st = document.documentElement.classList.contains('stage'); } catch (e) { } return Math.min(window.devicePixelRatio || 1, isLandscape() ? 1.15 : (st ? 2 : 1.5)); }          // TV / sideways: render sharper
+var W = 480, H = 853;                       // portrait frame 9:16; in landscape W grows to the screen's shape (H stays 853 so every vertical position keeps its meaning)
+var SS = 1, STX = 0, STY = 130;
+function isLandscape() { var vw = window.innerWidth || 390, vh = window.innerHeight || 844; return vw > vh * 1.15; }
+function frameSize() { if (!isLandscape()) return 480; var vw = window.innerWidth || 844, vh = window.innerHeight || 390; return Math.max(853, Math.min(1650, Math.round(853 * vw / vh))); }
+function setFrameW(w) { W = w; STX = (w - 480) / 2; }              // the 480-wide arena geometry (zones, popups, 2D layers) stays centred in a wider frame
+function reframe(canvas, ctx, bg) {                                 // called every frame by the match screens: follows rotation
+  var w = frameSize(), d = mbDpr();
+  if (w === W && canvas.width === Math.round(W * d)) return bg;
+  setFrameW(w); canvas.width = Math.round(W * d); canvas.height = Math.round(H * d); ctx.setTransform(d, 0, 0, d, 0, 0); return makeBackground(d);
+}             // the 480x640 arena geometry sits 130 px lower in the taller frame
 var ARM0 = { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0 };   // neutral boxing guard
 
 /* Punch table (balance from the design brief): stamina cost and damage per punch type. */
@@ -2403,17 +2418,51 @@ function loadArena() {
   im.src = 'data:image/png;base64,' + ARENA_BG_B64;
 }
 /* cam in -1..1 (lean); the background moves a little less than the fighters and zooms slightly, always covering the frame */
+function arenaWide() {                                                  // the sharp picture keeps its scale in the middle and fades into a blurred mirror image on both sides, so the frame can be as wide as the screen
+  if (ARENA.wide && ARENA.ww === W && ARENA.wh === H) return ARENA.wide;
+  var c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'), dh = 480 * ARENA.img.height / ARENA.img.width, x0 = (W - 480) / 2, k, g;
+  if (!ARENA.soft) {                                                    // blurred copy: shrink, then stretch back up with smoothing (works on every browser)
+    var sm = document.createElement('canvas'); sm.width = 30; sm.height = Math.max(8, Math.round(30 * dh / 480)); sm.getContext('2d').drawImage(ARENA.main, 0, 0, sm.width, sm.height);
+    var cur = sm, wdt;
+    for (wdt = 60; wdt <= 240; wdt *= 2) { var nx = document.createElement('canvas'); nx.width = wdt; nx.height = Math.round(wdt * dh / 480); var nxx = nx.getContext('2d'); nxx.imageSmoothingEnabled = true; nxx.imageSmoothingQuality = 'high'; nxx.drawImage(cur, 0, 0, nx.width, nx.height); cur = nx; }
+    ARENA.soft = cur;
+    var ft = document.createElement('canvas'); ft.width = 480; ft.height = Math.round(dh); var fx = ft.getContext('2d'); fx.drawImage(ARENA.main, 0, 0, 480, dh);
+    fx.globalCompositeOperation = 'destination-out';
+    var fg = fx.createLinearGradient(0, 0, 70, 0); fg.addColorStop(0, 'rgba(0,0,0,1)'); fg.addColorStop(1, 'rgba(0,0,0,0)'); fx.fillStyle = fg; fx.fillRect(0, 0, 70, ft.height);
+    var fg2 = fx.createLinearGradient(410, 0, 480, 0); fg2.addColorStop(0, 'rgba(0,0,0,0)'); fg2.addColorStop(1, 'rgba(0,0,0,1)'); fx.fillStyle = fg2; fx.fillRect(410, 0, 70, ft.height);
+    ARENA.feather = ft;
+  }
+  x.imageSmoothingEnabled = true; x.drawImage(ARENA.under, -40, -40, W + 80, H + 80); x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(0, 0, W, H);
+  for (k = -Math.ceil(x0 / 480); k <= Math.ceil(x0 / 480); k++) {        // blurred mirrored tiles
+    x.save(); if (k % 2) { x.translate(x0 + k * 480 + 480, 0); x.scale(-1, 1); x.drawImage(ARENA.soft, 0, H - dh, 480, dh); } else x.drawImage(ARENA.soft, x0 + k * 480, H - dh, 480, dh); x.restore();
+  }
+  x.fillStyle = 'rgba(0,0,0,.22)'; x.fillRect(0, 0, W, H);
+  x.drawImage(ARENA.feather, x0, H - dh, 480, dh);                      // the real picture, edges feathered into the blur
+  g = x.createLinearGradient(0, 0, W, 0); g.addColorStop(0, 'rgba(0,0,0,.35)'); g.addColorStop(0.3, 'rgba(0,0,0,0)'); g.addColorStop(0.7, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  ARENA.wide = c; ARENA.ww = W; ARENA.wh = H; return c;
+}
 function drawArena(ctx, fallback, cam) {
   loadArena();
-  if (!ARENA.img) { ctx.drawImage(fallback, -10, -10, W + 20, H + 20); return; }
+  if (!ARENA.img) {
+    if (W <= 480) { ctx.drawImage(fallback, -10, -10, W + 20, H + 20); return; }
+    var x0 = (W - 480) / 2, k;
+    for (k = -Math.ceil(x0 / 480); k <= Math.ceil(x0 / 480); k++) { ctx.save(); if (k % 2) { ctx.translate(x0 + k * 480 + 480, 0); ctx.scale(-1, 1); ctx.drawImage(fallback, 0, 0, 480, H); } else ctx.drawImage(fallback, x0 + k * 480, 0, 480, H); ctx.restore(); }
+    return;
+  }
   var ac = Math.abs(cam || 0), z = 1 + 0.035 * ac, tx = -(cam || 0) * W * 0.01, dh = W * ARENA.img.height / ARENA.img.width;
   ctx.save(); ctx.translate(W / 2 + tx, H / 2); ctx.scale(z, z); ctx.translate(-W / 2, -H / 2);
-  ctx.imageSmoothingEnabled = true; ctx.drawImage(ARENA.under, -40, -40, W + 80, H + 80);
-  ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(-40, -40, W + 80, H + 80);
-  ctx.drawImage(ARENA.main, 0, H - dh, W, dh);
+  if (W > 480) ctx.drawImage(arenaWide(), 0, 0, W, H);
+  else {
+    ctx.imageSmoothingEnabled = true; ctx.drawImage(ARENA.under, -40, -40, W + 80, H + 80);
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(-40, -40, W + 80, H + 80);
+    ctx.drawImage(ARENA.main, 0, H - dh, W, dh);
+  }
   ctx.restore();
 }
-function makeBackground(dpr) {
+function makeBackground(dpr) {                                          // the fallback street is always drawn 480 wide and tiled (mirrored) across a wider frame
+  var Ws = W; W = 480; try { return makeBackground0(dpr); } finally { W = Ws; }
+}
+function makeBackground0(dpr) {
   loadArena();
   var c = document.createElement('canvas'); c.width = W * dpr; c.height = H * dpr;
   var x = c.getContext('2d'); x.scale(dpr, dpr);
@@ -2780,7 +2829,7 @@ function drawHealth(ctx, side, hp, show) {
   ctx.shadowColor = col; ctx.shadowBlur = 10; ctx.strokeStyle = col; ctx.lineWidth = 3; hexPath(ctx, cx, cy, 25, 25 * 0.87); ctx.stroke(); ctx.restore();
 }
 function drawCenterBadge(ctx, G) {
-  var secs = Math.floor(G.time), mm = Math.floor(secs / 60), ss = secs % 60, cx = 240, cy = 50;
+  var secs = Math.floor(G.time), mm = Math.floor(secs / 60), ss = secs % 60, cx = W / 2, cy = 50;
   ctx.save(); hexPath(ctx, cx, cy, 39, 30);
   var g = ctx.createLinearGradient(0, cy - 30, 0, cy + 30); g.addColorStop(0, '#2c2d34'); g.addColorStop(1, '#0b0b0f'); ctx.fillStyle = g; ctx.fill();
   var sg = ctx.createLinearGradient(cx - 39, 0, cx + 39, 0); sg.addColorStop(0, '#9aa0ad'); sg.addColorStop(0.5, '#ffffff'); sg.addColorStop(1, '#9aa0ad');
@@ -2852,7 +2901,7 @@ function drawAnnounce(ctx, G) {
   var T = G.turn; if (!T || T.age > 1.7 || G.phase !== 'fight') return;
   var kind = T.who, age = T.age, k = age < 0.16 ? age / 0.16 : 1, sc = age < 0.16 ? 1.55 - 0.55 * (1 - Math.pow(1 - k, 3)) : 1 + 0.015 * Math.max(0, 1 - (age - 0.16) * 2), al = age < 0.12 ? age / 0.12 : age < 1.0 ? 1 : Math.max(0, 1 - (age - 1.0) / 0.7);
   if (!BANNER[kind]) BANNER[kind] = makeBanner(kind);
-  ctx.save(); ctx.globalAlpha = clamp(al, 0, 1); ctx.translate(240, 232); ctx.scale(sc, sc); ctx.drawImage(BANNER[kind], -240, -100, 480, 200); ctx.restore();
+  ctx.save(); ctx.globalAlpha = clamp(al, 0, 1); ctx.translate(W / 2, 232); ctx.scale(sc, sc); ctx.drawImage(BANNER[kind], -240, -100, 480, 200); ctx.restore();
 }
 /* the real turn countdown (bottom-right): stopwatch icon and a big white number */
 function drawTurnTimer(ctx, G) {
@@ -2875,31 +2924,32 @@ function drawDev(ctx, G) {
   L.forEach(function (t, i) { ctx.fillText(t, 12, 212 + i * 12); });
   ctx.restore();
 }
+var HUDX = 0;
 function drawHUD(ctx, G, time) {
   var hg = ctx.createLinearGradient(0, 0, 0, 120); hg.addColorStop(0, 'rgba(0,0,0,.55)'); hg.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = hg; ctx.fillRect(0, 0, W, 120);
+  ctx.fillStyle = hg; ctx.fillRect(-HUDX, 0, W + 2 * HUDX, 120);
   loadFace();
   drawHealth(ctx, 'L', G.pHP, G.pShow); drawHealth(ctx, 'R', G.aHP, G.aShow); drawCenterBadge(ctx, G);
   drawStam(ctx, 'L', G.pSt, G.pSt < STAM.low, time); drawStam(ctx, 'R', G.aSt, G.aSt < STAM.low, time);
   if (SETTINGS.dev) drawDev(ctx, G);
   drawAnnounce(ctx, G); drawTurnTimer(ctx, G);
-  if (G.phase === 'ended') { textOutlined(ctx, G.endLabel || 'K.O.!', 240, H / 2 - 60, 72 + Math.min(20, G.endT * 40), '#ffc42e', 1); textOutlined(ctx, G.result && G.result.outcome === 'win' ? 'YOU WIN' : G.result && G.result.outcome === 'draw' ? 'DRAW' : 'YOU LOSE', 240, H / 2 + 10, 34, '#fff', 1); }
+  if (G.phase === 'ended') { textOutlined(ctx, G.endLabel || 'K.O.!', W / 2, H / 2 - 60, 72 + Math.min(20, G.endT * 40), '#ffc42e', 1); textOutlined(ctx, G.result && G.result.outcome === 'win' ? 'YOU WIN' : G.result && G.result.outcome === 'draw' ? 'DRAW' : 'YOU LOSE', 240, H / 2 + 10, 34, '#fff', 1); }
   ctx.font = '12px ' + FONT; ctx.fillStyle = '#f3f5ff';
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText('PUNCHES ' + G.hits + '/' + G.swings + '   DODGES ' + G.dodges + '   BLOCKS ' + G.blocks + '   HITS TAKEN ' + G.taken, 240, 114);
-  if (G.combo > 1) { var sc = 1 + 0.12 * Math.sin(time * 14); textOutlined(ctx, 'COMBO x' + G.combo, 240, 138, 20 * sc, '#ffc42e'); }
+  ctx.fillText('PUNCHES ' + G.hits + '/' + G.swings + '   DODGES ' + G.dodges + '   BLOCKS ' + G.blocks + '   HITS TAKEN ' + G.taken, W / 2, 114);
+  if (G.combo > 1) { var sc = 1 + 0.12 * Math.sin(time * 14); textOutlined(ctx, 'COMBO x' + G.combo, W / 2, 138, 20 * sc, '#ffc42e'); }
   if (G.a.state === 'windup' && G.a.atk) {
     var pu = 0.5 + 0.5 * Math.sin(time * 20);
     rr(ctx, 50, 134, 380, 40, 14); ctx.fillStyle = 'rgba(255,59,79,' + (0.78 + 0.2 * pu) + ')'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.font = '15px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('INCOMING! ' + G.a.atk.label, 240, 155);
+    ctx.font = '15px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('INCOMING! ' + G.a.atk.label, W / 2, 155);
   }
   // 3D model status: never hide that the basic avatar is a fallback
-  if (K3.status === 'loading') { ctx.font = '13px ' + FONT; ctx.fillStyle = '#ffc42e'; ctx.textAlign = 'center'; ctx.fillText('LOADING KHALID…', 240, H - 150); }
+  if (K3.status === 'loading') { ctx.font = '13px ' + FONT; ctx.fillStyle = '#ffc42e'; ctx.textAlign = 'center'; ctx.fillText('LOADING KHALID…', W / 2, H - 150); }
   else if (K3.status === 'error') {
     rr(ctx, 20, 186, 440, 56, 12); ctx.fillStyle = 'rgba(255,59,79,.92)'; ctx.fill();
     ctx.font = '12px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('KHALID 3D MODEL UNAVAILABLE. SHOWING BASIC AVATAR', 240, 205);
-    ctx.font = '10px ' + FONT; ctx.fillText(String(K3.error).slice(0, 62), 240, 226);
+    ctx.fillText('KHALID 3D MODEL UNAVAILABLE. SHOWING BASIC AVATAR', W / 2, 205);
+    ctx.font = '10px ' + FONT; ctx.fillText(String(K3.error).slice(0, 62), W / 2, 226);
   }
   // honest tracking indicator: never hide missing landmarks
   var v = G.vis;
@@ -2911,15 +2961,16 @@ function drawHUD(ctx, G, time) {
     else if (!v.rw) msg = 'RIGHT HAND NOT VISIBLE';
     if (msg && !G.paused) {
       var tby = H - 190, tbh = 34;
+      ctx.save(); ctx.translate((W - 480) / 2, 0);
       ctx.beginPath(); ctx.moveTo(58, tby); ctx.lineTo(422, tby); ctx.lineTo(410, tby + tbh); ctx.lineTo(46, tby + tbh); ctx.closePath(); ctx.fillStyle = '#FFD21A'; ctx.fill();
       ctx.fillStyle = '#c99a00'; [[46, 58], [412, 424]].forEach(function (e) { ctx.beginPath(); ctx.moveTo(e[0] + 2, tby + tbh); ctx.lineTo(e[0] + 10, tby); ctx.lineTo(e[0] + 15, tby); ctx.lineTo(e[0] + 7, tby + tbh); ctx.closePath(); ctx.fill(); });
-      ctx.font = 'italic 900 15px ' + HFONT; ctx.fillStyle = '#16110a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(msg, 240, tby + tbh / 2 + 1);
+      ctx.font = 'italic 900 15px ' + HFONT; ctx.fillStyle = '#16110a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(msg, 240, tby + tbh / 2 + 1); ctx.restore();
     }
   }
   if (G.paused) {
-    ctx.fillStyle = 'rgba(8,6,36,.7)'; ctx.fillRect(0, 0, W, H);
-    textOutlined(ctx, 'TRACKING LOST', 240, H / 2 - 40, 44, '#ffc42e', 1);
-    ctx.font = '15px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.textAlign = 'center'; ctx.fillText('Show your shoulders to continue', 240, H / 2 + 10);
+    ctx.fillStyle = 'rgba(8,6,36,.7)'; ctx.fillRect(-HUDX, 0, W + 2 * HUDX, H);
+    textOutlined(ctx, 'TRACKING LOST', W / 2, H / 2 - 40, 44, '#ffc42e', 1);
+    ctx.font = '15px ' + FONT; ctx.fillStyle = '#f3f5ff'; ctx.textAlign = 'center'; ctx.fillText('Show your shoulders to continue', W / 2, H / 2 + 10);
   }
 }
 
@@ -2950,10 +3001,13 @@ function drawScene(ctx, G, time, bg, hud) {
   ctx.restore();
   ctx.restore();
   if (G.flash > 0) {
-    var vg = ctx.createRadialGradient(240, H / 2, 160, 240, H / 2, 560); vg.addColorStop(0, 'rgba(255,59,79,0)'); vg.addColorStop(1, 'rgba(255,59,79,' + (0.7 * G.flash) + ')');
+    var vg = ctx.createRadialGradient(W / 2, H / 2, 160, W / 2, H / 2, Math.max(560, W * 0.6)); vg.addColorStop(0, 'rgba(255,59,79,0)'); vg.addColorStop(1, 'rgba(255,59,79,' + (0.7 * G.flash) + ')');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
-  if (hud !== false) drawHUD(ctx, G, time);
+  if (hud !== false) {                                              // the HUD keeps its 480-wide design and sits in the middle of a wider frame
+    var Wf = W; HUDX = (Wf - 480) / 2; W = 480; ctx.save(); ctx.translate(HUDX, 0);
+    try { drawHUD(ctx, G, time); } finally { ctx.restore(); W = Wf; HUDX = 0; }
+  }
 }
 
 /* ======================================================================
@@ -3008,7 +3062,7 @@ function HeroCanvas() {
   var cv = useRef(null);
   useEffect(function () {
     var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
-    canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    setFrameW(480); canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame('game'), raf = 0, last = performance.now(), nextPunch = 1, side = 'R', atk = 0, lastState = 'idle', pk = 0;
     G.phase = 'fight';
     var demo = {
@@ -3043,7 +3097,7 @@ function MirrorCanvas(props) {
   var cv = useRef(null);
   useEffect(function () {
     var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 1.25);
-    canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    setFrameW(480); canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame(), raf = 0, last = performance.now();
     G.phase = 'fight'; G.a.timer = 1e9;
     function frame(now) {
@@ -3392,7 +3446,7 @@ function SettingsScreen(props) {
       h('label', { className: 'fld' }, h('span', null, 'Your name (shown to your opponent)'), h('input', { type: 'text', value: cfg.name, maxLength: 14, placeholder: 'Player', autoCorrect: 'off', onChange: function (e) { setC({ name: e.target.value }); } }))),
     h('div', { className: 'spacer' }),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onMovement }, 'MOVEMENT CHECK'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onPunchTest }, 'PUNCH TEST')),
-    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onFightCal }, 'FIGHT SETUP')),
+    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onFightCal }, 'FIGHT SETUP'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: function () { props.onCamPref(props.camPref === 'environment' ? 'auto' : 'environment'); } }, 'CAMERA: ' + (props.camPref === 'environment' ? 'REAR (TV)' : 'FRONT'))),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onHow }, 'HOW TO PLAY'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onCamOff }, 'CAMERA OFF')),
     h('div', { className: 'row' }, h('span', { style: { display: 'none' } }), h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: props.onBack }, 'BACK')));
 }
@@ -3700,7 +3754,7 @@ function Match(props) {
   var pz = useState(false), paused = pz[0], setPaused = pz[1], pausedRef = useRef(false), needDown = useRef(false), vs = useState(K3.view), view = vs[0], setView = vs[1], resetRef = useRef(null), endRef = useRef(null), DEVBAR = /[?&]dev=1/.test(location.search);
   useEffect(function () {
     var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
-    canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    setFrameW(frameSize()); canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame(props.mode), raf = 0, last = performance.now(), dead = false, endT = 0, ended = false;
     function finish() { if (ended) return; ended = true; props.onEnd(summarize(G)); }
     function onKey(e) { if (e.key === 'Escape' || e.key === 'q' || e.key === 'Q') finish(); }
@@ -3714,6 +3768,7 @@ function Match(props) {
       if (dead) return;
       var dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
       if (pausedRef.current) props.input.drainPunches(); else stepGame(G, dt, props.input, Sfx);
+      bg = reframe(canvas, ctx, bg);
       drawScene(ctx, G, now / 1000, bg, true);
       if (G.done) finish();
       if (!props.debug) {                                  // finish gesture: both hands above the head, held for 1.5 s (punching or guarding never reaches it)
@@ -3795,7 +3850,7 @@ function MpMatch(props) {
   var net = props.net, cv = useRef(null), endRef = useRef(null), k3 = useK3(), cs = useState(true), conn = cs[0], setConn = cs[1];
   useEffect(function () {
     var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
-    canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    setFrameW(frameSize()); canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var room = net.room, me = room ? room.you : 0, mine = room && room.players.filter(function (p) { return p.slot === me; })[0], opp = room && room.players.filter(function (p) { return p.slot !== me; })[0];
     HUDN = { L: String(mine ? mine.name : 'YOU').toUpperCase().slice(0, 12), R: String(opp ? opp.name : 'OPPONENT').toUpperCase().slice(0, 12) };
     var bg = makeBackground(dpr), G = createGame('game'), raf = 0, last = performance.now(), dead = false, finished = false, buf = new Pose.Buffer(), ms = net.matchState || null, msAt = performance.now(), hits = [], endT = 0;
@@ -3835,6 +3890,7 @@ function MpMatch(props) {
       var evs = buf.drainEvents(pn);
       for (var i = 0; i < evs.length; i++) if (K3.opp) { K3.opp.st.boost[evs[i].s] = now / 1000; K3.opp.st.kind[evs[i].s] = evs[i].k; }
       while (hits.length) mpHit(G, hits.shift(), me, Sfx, now / 1000);
+      bg = reframe(canvas, ctx, bg);
       drawScene(ctx, G, now / 1000, bg, true);
       if (G.phase === 'cd') { var left = G.cdLeft == null ? 3500 : G.cdLeft; textOutlined(ctx, left > 3000 ? 'GET READY' : left > 0 ? String(Math.ceil(left / 1000)) : 'FIGHT!', 240, H / 2 - 40, left > 3000 ? 44 : 96, '#ffc42e', 1); }
       if (G.phase === 'fight' && G.counterT > 0) textOutlined(ctx, 'COUNTER NOW!', 240, 300, 30 + 3 * Math.sin(now / 60), '#3be8ff', 1);
@@ -3879,7 +3935,7 @@ function SyncTest(props) {
   var room = net.room, other = room && room.players.filter(function (p) { return p.slot !== room.you; })[0];
   useEffect(function () {
     var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr();
-    canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    setFrameW(frameSize()); canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var bg = makeBackground(dpr), G = createGame('training'), raf = 0, last = performance.now(), dead = false, punchId = 0, sentPunches = 0, gotPunches = 0, buf = new Pose.Buffer();
     G.sync = true; G.remote = { pose: null, status: 'empty' };
     var sender = new Pose.Sender({ send: function (m) { net.sendPose(m); }, hz: 20 });
@@ -3900,6 +3956,7 @@ function SyncTest(props) {
       var smp = buf.sample(pn); G.remote.pose = smp.pose; G.remote.status = smp.status;
       var evs = buf.drainEvents(pn);
       for (var i = 0; i < evs.length; i++) { gotPunches++; if (K3.opp) { K3.opp.st.boost[evs[i].s] = now / 1000; K3.opp.st.kind[evs[i].s] = evs[i].k; } }
+      bg = reframe(canvas, ctx, bg);
       drawScene(ctx, G, now / 1000, bg, false);
       raf = requestAnimationFrame(frame);
     }
@@ -3939,19 +3996,15 @@ function App() {
   var s8 = useState('training'), gmode = s8[0], setGmode = s8[1];
   var s9 = useState(loadNetCfg), cfg = s9[0], setCfg = s9[1];
   var s10 = useState(null), mpRes = s10[0], setMpRes = s10[1];
-  var s11 = useState(function () { try { return localStorage.getItem('mb.tv') === '1'; } catch (e) { return false; } }), tv = s11[0], setTv = s11[1];
+  var s11 = useState(CAMPREF.v), camPref = s11[0], setCamPrefS = s11[1], switching = useRef(false), badFacing = useRef('');
   var s14 = useState(false), fcReview = s14[0], setFcReview = s14[1], forceFc = useRef(false), s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
   useEffect(function () {                                                      // follow rotation / resizing (landscape for a TV)
     var f = function () { setVp(function (n) { return n + 1; }); };
     window.addEventListener('resize', f); window.addEventListener('orientationchange', f);
     return function () { window.removeEventListener('resize', f); window.removeEventListener('orientationchange', f); };
   }, []);
-  function toggleTv() {
-    var v = !tv; setTv(v); try { localStorage.setItem('mb.tv', v ? '1' : '0'); } catch (e) { }
-    if (camOn && mode === 'camera') {                                          // TV mode uses the rear camera; switching back uses the front one. The new view has to be calibrated again.
-      tracker.setFacing(v ? 'environment' : 'user').then(function () { forceFc.current = true; setCalibrated(false); setScreen('calibration'); }, function () { camOff(); });
-    } else tracker.facing = v ? 'environment' : 'user';
-  }
+  function chooseCam(v) { setCamPref(v); setCamPrefS(v); }
+  function toggleTv() { chooseCam(camPref === 'environment' ? 'auto' : 'environment'); }
   var inviteRef = useRef(null); if (inviteRef.current === null) inviteRef.current = inviteCode();         // a friend's invite link: ?room=ABC234
   var netRef = useRef(null); if (!netRef.current) netRef.current = makeNet(cfg);
   var net = netRef.current;
@@ -3984,6 +4037,12 @@ function App() {
   function camOff() { netRef.current.close(); tracker.releaseCamera(); setCamOn(false); setCalibrated(false); setScreen('permission'); }
   function play(m) { if (m) setGmode(m); setRound(function (r) { return r + 1; }); setScreen('match'); }
   function applyCfg(c) { saveNetCfg(c); setCfg(c); netRef.current.close(); netRef.current = makeNet(c); }
+  var want = desiredFacing(), settled = ['menu', 'online', 'room', 'settings', 'calibration', 'fightcal', 'tutorial', 'punchtest', 'permission'].indexOf(screen) >= 0;
+  useEffect(function () {                                                         // turning the phone sideways (or the camera setting) picks the matching camera; the new view is calibrated again
+    if (!camOn || mode !== 'camera' || !settled || switching.current || tracker.facing === want || badFacing.current === want) return;
+    switching.current = true;
+    tracker.setFacing(want).then(function (got) { if (got !== want) badFacing.current = want; forceFc.current = true; setCalibrated(false); setScreen('calibration'); }, function () { camOff(); }).then(function () { switching.current = false; });
+  }, [want, camOn, mode, screen, camPref]);
   var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && (screen !== 'fightcal' || fcReview) && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
   var body;
   if (screen === 'permission') body = h(Permission, {
@@ -3993,20 +4052,20 @@ function App() {
   });
   else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); FCAL.load(); if (FCAL.data && !forceFc.current) { FCAL.apply(tracker.engine); setScreen(inviteRef.current ? 'room' : 'menu'); } else { forceFc.current = false; setScreen('fightcal'); } }, onBack: camOff });
   else if (screen === 'fightcal') body = h(FightCal, { tracker: tracker, onReview: setFcReview, onDone: function () { setScreen(inviteRef.current ? 'room' : 'menu'); } });
-  else if (screen === 'menu') body = h(MainMenu, { tracker: tracker, camOn: camOn, k3: k3, tv: tv, onTv: toggleTv, onOnline: function () { setScreen('online'); }, onTraining: function () { play('training'); }, onSettings: function () { setScreen('settings'); } });
+  else if (screen === 'menu') body = h(MainMenu, { tracker: tracker, camOn: camOn, k3: k3, tv: camPref === 'environment', onTv: toggleTv, onOnline: function () { setScreen('online'); }, onTraining: function () { play('training'); }, onSettings: function () { setScreen('settings'); } });
   else if (screen === 'online') body = h(OnlineMenu, { key: 'o' + cfg.url + cfg.kind, net: net, onPrivate: function () { setScreen('room'); }, onBack: function () { netRef.current.close(); setScreen('menu'); } });
   else if (screen === 'room') body = h(PrivateRoom, { key: 'r' + cfg.url + cfg.kind, net: net, autoJoin: inviteRef.current, onVsAi: inviteRef.current ? null : function () { netRef.current.close(); play('game'); }, onBack: function () { if (inviteRef.current) { inviteRef.current = ''; netRef.current.close(); setScreen('menu'); } else setScreen('online'); } });
   else if (screen === 'lobby') body = h(Lobby, { net: net, onLeave: function () { netRef.current.leaveRoom(); setScreen('room'); } });
   else if (screen === 'mp') body = h(MpMatch, { key: 'mp', net: net, tracker: tracker, input: input, onLeave: function () { setScreen('room'); }, onEnd: function (r) { setMpRes(r); setScreen('mpresult'); } });
   else if (screen === 'mpresult') body = h(MpResult, { result: mpRes || {}, onLobby: function () { setScreen(netRef.current.room ? 'lobby' : 'room'); }, onHome: home });
-  else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
+  else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, camPref: camPref, onCamPref: chooseCam, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
   else if (screen === 'punchtest') body = h(PunchTest, { tracker: tracker, onBack: function () { setScreen('settings'); } });
   else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, mode: 'settings', onDone: function () { setScreen('settings'); }, onProgress: function () { }, onBack: function () { setScreen('settings'); } });
   else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); setScreen('result'); } });
   else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: function () { play(); }, onHome: home });
   /* TV / landscape: the phone sideways (or TV mode on). Menus keep their portrait layout, scaled to the full height of the screen and centred on a blurred copy of the street photo,
      so a TV mirror has no black bars. The match canvas is already full height; its camera preview moves to the side. */
-  var vw = window.innerWidth || 390, vh = window.innerHeight || 844, landscape = vw > vh * 1.15, stage = tv || landscape, full = screen === 'match' || screen === 'mp', own = screen === 'menu' || screen === 'online' || screen === 'room' || screen === 'permission';       // 'own' screens lay themselves out for any shape of screen
+  var vw = window.innerWidth || 390, vh = window.innerHeight || 844, landscape = vw > vh * 1.15, stage = landscape, full = screen === 'match' || screen === 'mp', own = screen === 'menu' || screen === 'online' || screen === 'room' || screen === 'permission';       // 'own' screens lay themselves out for any shape of screen
   try { document.documentElement.classList.toggle('stage', !!stage); document.documentElement.classList.toggle('fgm-on', !full); } catch (e) { }
   var content = body;
   if (stage && !full && !own) { var sc = Math.min(vh / 700, vw / 390); content = h('div', { className: 'stagebox', style: { width: 390, height: 700, transform: 'scale(' + sc + ')', left: (vw - 390 * sc) / 2, top: (vh - 700 * sc) / 2 } }, body); }
@@ -4015,7 +4074,7 @@ function App() {
   return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null);
 }
 
-window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
+window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
