@@ -4363,7 +4363,7 @@ function App() {
   else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: function () { play(); }, onHome: home });
   /* TV / landscape: the phone sideways (or TV mode on). Menus keep their portrait layout, scaled to the full height of the screen and centred on a blurred copy of the street photo,
      so a TV mirror has no black bars. The match canvas is already full height; its camera preview moves to the side. */
-  var vw = window.innerWidth || 390, vh = window.innerHeight || 844, landscape = vw > vh * 1.15, stage = landscape, full = screen === 'match' || screen === 'mp' || screen === 'celebrate', own = screen === 'lang' || screen === 'menu' || screen === 'online' || screen === 'room' || screen === 'permission';       // 'own' screens lay themselves out for any shape of screen
+  var vw = window.innerWidth || 390, vh = window.innerHeight || 844, landscape = vw > vh * 1.15, stage = landscape, full = screen === 'match' || screen === 'mp' || screen === 'celebrate', own = screen === 'lang' || screen === 'settings' || screen === 'calibration' || screen === 'menu' || screen === 'online' || screen === 'room' || screen === 'permission';       // 'own' screens lay themselves out for any shape of screen
   try { document.documentElement.classList.toggle('stage', !!stage); document.documentElement.classList.toggle('fgm-on', !full); } catch (e) { }
   var content = body;
   if (stage && !full && !own) { var sc = Math.min(vh / 700, vw / 390); content = h('div', { className: 'stagebox', style: { width: 390, height: 700, transform: 'scale(' + sc + ')', left: (vw - 390 * sc) / 2, top: (vh - 700 * sc) / 2 } }, body); }
