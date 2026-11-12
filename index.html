@@ -173,6 +173,7 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .fpips { display: flex; gap: 12px; justify-content: center; min-height: 26px; }
 .fpip { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); }
 .fpip.on { background: #ffd21a; border-color: #ffd21a; }
+.mskip { position: absolute; right: 14px; bottom: 14px; min-width: 90px; z-index: 6; }
 .mpause { position: absolute; inset: 0; z-index: 8; background: rgba(6,6,14,.78); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; }
 .mpause b { font: 900 italic 40px/1 var(--head, inherit); letter-spacing: .06em; color: #ffd21a; text-shadow: 0 2px 0 #000; margin-bottom: 8px; }
 .mpause .btn { width: min(78%, 300px); min-height: 56px; font-size: 18px; }
@@ -3749,6 +3750,45 @@ function MStatus(props) {
   var snap = useSnap(props.tracker, 150);
   return h('div', { className: 'mst' }, h(StatusChip, { status: snap.status }), h(VisPips, { snap: snap }), snap.fps ? h('span', { className: 'fpsx' }, snap.fps + ' fps') : null);
 }
+
+/* Victory dance: after a win the fighter is shown from the front, like a mirror, and copies the player's moves for 7 seconds on an empty stage. */
+function Celebrate(props) {
+  var cv = useRef(null), sk = useState(7), left = sk[0], setLeft = sk[1];
+  useEffect(function () {
+    var canvas = cv.current, ctx = canvas.getContext('2d'), dpr = mbDpr(), prevView = K3.view;
+    setFrameW(frameSize()); canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var bg = null, G = createGame('training'), raf = 0, last = performance.now(), t0 = last, dead = false, done = false, conf = [], i, DUR = 7;
+    for (i = 0; i < 90; i++) conf.push({ x: Math.random(), y: Math.random(), v: 0.12 + Math.random() * 0.25, s: 4 + Math.random() * 7, r: Math.random() * 6, c: ['#ffd21a', '#ff3b5c', '#37d8ff', '#59f08e', '#ffffff'][i % 5] });
+    function end() { if (done) return; done = true; props.onDone(); }
+    if (K3.status !== 'ready') { setTimeout(end, 50); return function () { dead = true; }; }
+    K3.setView('front'); props.input.drainPunches(); Sfx.init(); try { Sfx.bell(); } catch (e) { }
+    var lastSec = -1;
+    function frame(now) {
+      if (dead) return;
+      var dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now; var el = (now - t0) / 1000;
+      stepGame(G, dt, props.input, Sfx); props.input.drainPunches(); G.aHP = 100; G.pHP = 100;
+      var w = frameSize(); if (w !== W || canvas.width !== Math.round(W * mbDpr())) { setFrameW(w); dpr = mbDpr(); canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+      ctx.clearRect(0, 0, W, H);
+      var g = ctx.createRadialGradient(W / 2, H * 0.55, 40, W / 2, H * 0.55, Math.max(W, H) * 0.75); g.addColorStop(0, '#2a2f6b'); g.addColorStop(0.55, '#12143a'); g.addColorStop(1, '#05061a'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var sp = ctx.createLinearGradient(0, 0, 0, H); sp.addColorStop(0, 'rgba(255,230,140,.20)'); sp.addColorStop(1, 'rgba(255,230,140,0)'); ctx.fillStyle = sp; ctx.beginPath(); ctx.moveTo(W / 2 - 40, 0); ctx.lineTo(W / 2 + 40, 0); ctx.lineTo(W / 2 + 260, H); ctx.lineTo(W / 2 - 260, H); ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.translate(STX, STY); K3.draw(ctx, G, now / 1000); ctx.restore();
+      conf.forEach(function (c) { var yy = ((c.y + el * c.v) % 1) * H, xx = c.x * W + Math.sin(el * 2 + c.r) * 14; ctx.save(); ctx.translate(xx, yy); ctx.rotate(el * 2 + c.r); ctx.fillStyle = c.c; ctx.globalAlpha = 0.85; ctx.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); ctx.restore(); });
+      var pop = Math.min(1, el / 0.35), sc = 1 + 0.25 * (1 - pop) + 0.03 * Math.sin(el * 6);
+      ctx.save(); ctx.translate(W / 2, 96); ctx.scale(sc, sc); textOutlined(ctx, 'VICTORY!', 0, 0, 64, '#ffd21a', 1); ctx.restore();
+      textOutlined(ctx, el < 4 ? 'DANCE! The fighter copies you.' : 'Keep going…', W / 2, 150, 17, '#ffffff', 1);
+      var frac = Math.min(1, el / DUR); ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(W / 2 - 110, H - 70, 220, 8); ctx.fillStyle = '#ffd21a'; ctx.fillRect(W / 2 - 110, H - 70, 220 * frac, 8);
+      var sec = Math.max(0, Math.ceil(DUR - el)); if (sec !== lastSec) { lastSec = sec; setLeft(sec); }
+      if (el >= DUR) { end(); return; }
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return function () { dead = true; cancelAnimationFrame(raf); try { K3.setView(prevView); } catch (e) { } };
+  }, []);
+  return h('div', { className: 'mfs' },
+    h('div', { className: 'mwrap' },
+      h('canvas', { ref: cv, className: 'mcv', 'aria-label': 'Victory dance' }),
+      h('button', { className: 'btn ghost mskip', onClick: props.onDone }, 'SKIP ' + left)));
+}
 function Match(props) {
   var cv = useRef(null), ms = useState(Sfx.muted), muted = ms[0], setMuted = ms[1], ds = useState(SETTINGS.dev), dev = ds[0], setDev = ds[1];
   var pz = useState(false), paused = pz[0], setPaused = pz[1], pausedRef = useRef(false), needDown = useRef(false), vs = useState(K3.view), view = vs[0], setView = vs[1], resetRef = useRef(null), endRef = useRef(null), DEVBAR = /[?&]dev=1/.test(location.search);
@@ -3997,7 +4037,7 @@ function App() {
   var s9 = useState(loadNetCfg), cfg = s9[0], setCfg = s9[1];
   var s10 = useState(null), mpRes = s10[0], setMpRes = s10[1];
   var s11 = useState(CAMPREF.v), camPref = s11[0], setCamPrefS = s11[1], switching = useRef(false), badFacing = useRef('');
-  var s14 = useState(false), fcReview = s14[0], setFcReview = s14[1], forceFc = useRef(false), s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
+  var s14 = useState(false), fcReview = s14[0], setFcReview = s14[1], celeNext = useRef('result'), forceFc = useRef(false), s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
   useEffect(function () {                                                      // follow rotation / resizing (landscape for a TV)
     var f = function () { setVp(function (n) { return n + 1; }); };
     window.addEventListener('resize', f); window.addEventListener('orientationchange', f);
@@ -4043,7 +4083,7 @@ function App() {
     switching.current = true;
     tracker.setFacing(want).then(function (got) { if (got !== want) badFacing.current = want; forceFc.current = true; setCalibrated(false); setScreen('calibration'); }, function () { camOff(); }).then(function () { switching.current = false; });
   }, [want, camOn, mode, screen, camPref]);
-  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && (screen !== 'fightcal' || fcReview) && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
+  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && (screen !== 'fightcal' || fcReview) && screen !== 'celebrate' && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
   var body;
   if (screen === 'permission') body = h(Permission, {
     tracker: tracker, onBack: home, invite: inviteRef.current,
@@ -4056,16 +4096,17 @@ function App() {
   else if (screen === 'online') body = h(OnlineMenu, { key: 'o' + cfg.url + cfg.kind, net: net, onPrivate: function () { setScreen('room'); }, onBack: function () { netRef.current.close(); setScreen('menu'); } });
   else if (screen === 'room') body = h(PrivateRoom, { key: 'r' + cfg.url + cfg.kind, net: net, autoJoin: inviteRef.current, onVsAi: inviteRef.current ? null : function () { netRef.current.close(); play('game'); }, onBack: function () { if (inviteRef.current) { inviteRef.current = ''; netRef.current.close(); setScreen('menu'); } else setScreen('online'); } });
   else if (screen === 'lobby') body = h(Lobby, { net: net, onLeave: function () { netRef.current.leaveRoom(); setScreen('room'); } });
-  else if (screen === 'mp') body = h(MpMatch, { key: 'mp', net: net, tracker: tracker, input: input, onLeave: function () { setScreen('room'); }, onEnd: function (r) { setMpRes(r); setScreen('mpresult'); } });
+  else if (screen === 'mp') body = h(MpMatch, { key: 'mp', net: net, tracker: tracker, input: input, onLeave: function () { setScreen('room'); }, onEnd: function (r) { setMpRes(r); celeNext.current = 'mpresult'; setScreen(r && r.outcome === 'win' && mode === 'camera' && K3.status === 'ready' ? 'celebrate' : 'mpresult'); } });
+  else if (screen === 'celebrate') body = h(Celebrate, { tracker: tracker, input: input, onDone: function () { setScreen(celeNext.current || 'result'); } });
   else if (screen === 'mpresult') body = h(MpResult, { result: mpRes || {}, onLobby: function () { setScreen(netRef.current.room ? 'lobby' : 'room'); }, onHome: home });
   else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, camPref: camPref, onCamPref: chooseCam, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
   else if (screen === 'punchtest') body = h(PunchTest, { tracker: tracker, onBack: function () { setScreen('settings'); } });
   else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, mode: 'settings', onDone: function () { setScreen('settings'); }, onProgress: function () { }, onBack: function () { setScreen('settings'); } });
-  else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); setScreen('result'); } });
+  else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); celeNext.current = 'result'; setScreen(r && r.outcome === 'win' && !(mode === 'debug') && K3.status === 'ready' ? 'celebrate' : 'result'); } });
   else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: function () { play(); }, onHome: home });
   /* TV / landscape: the phone sideways (or TV mode on). Menus keep their portrait layout, scaled to the full height of the screen and centred on a blurred copy of the street photo,
      so a TV mirror has no black bars. The match canvas is already full height; its camera preview moves to the side. */
-  var vw = window.innerWidth || 390, vh = window.innerHeight || 844, landscape = vw > vh * 1.15, stage = landscape, full = screen === 'match' || screen === 'mp', own = screen === 'menu' || screen === 'online' || screen === 'room' || screen === 'permission';       // 'own' screens lay themselves out for any shape of screen
+  var vw = window.innerWidth || 390, vh = window.innerHeight || 844, landscape = vw > vh * 1.15, stage = landscape, full = screen === 'match' || screen === 'mp' || screen === 'celebrate', own = screen === 'menu' || screen === 'online' || screen === 'room' || screen === 'permission';       // 'own' screens lay themselves out for any shape of screen
   try { document.documentElement.classList.toggle('stage', !!stage); document.documentElement.classList.toggle('fgm-on', !full); } catch (e) { }
   var content = body;
   if (stage && !full && !own) { var sc = Math.min(vh / 700, vw / 390); content = h('div', { className: 'stagebox', style: { width: 390, height: 700, transform: 'scale(' + sc + ')', left: (vw - 390 * sc) / 2, top: (vh - 700 * sc) / 2 } }, body); }
@@ -4074,7 +4115,7 @@ function App() {
   return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null);
 }
 
-window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
+window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
