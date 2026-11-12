@@ -45,12 +45,16 @@ h1, h2, h3, p { margin: 0; }
 .stagebox .screen.fit { height: 676px; min-height: 0; }
 .stage .mfs { background: transparent; }
 .stage .mwrap { width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; aspect-ratio: auto; }
-.stage .mcv { object-fit: contain; }
+.stage .mwrap { overflow: hidden; }
+.stage .mcv { object-fit: contain; transform: scale(1.1); transform-origin: 50% 42%; }          /* landscape: a slight camera zoom-in so the fighters are not small */
 .stage .mpip { position: fixed; left: 1.5vw; right: auto; top: auto; bottom: 3vh; width: min(15vw, 24vh); }
 .stage .mpip.lowpip { top: auto; bottom: 3vh; }
 .stage .mend { left: 30%; right: 30%; }
 .stage .mhint { left: 20%; right: 20%; }
 .tvhint { position: fixed; left: 8px; right: 8px; top: 8px; z-index: 60; text-align: center; font: 700 13px/1.3 var(--body); color: #2a1d00; background: var(--gold); border-radius: 12px; padding: 9px 12px; pointer-events: none; }
+.tvfab { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 80; display: flex; align-items: center; gap: 7px; height: 44px; padding: 0 15px 0 12px; border-radius: 999px; border: 2px solid #ffc42e; background: rgba(14,15,17,.86); color: #ffc42e; font: 800 15px/1 var(--body); letter-spacing: .06em; cursor: pointer; box-shadow: 0 2px 14px rgba(0,0,0,.55); -webkit-tap-highlight-color: transparent; }
+.tvfab svg { width: 22px; height: 22px; fill: currentColor; }
+.tvfab.on { background: #ffc42e; color: #2a1d00; }
 .tvbtn { position: absolute; right: 0; top: 0; z-index: 3; padding: 7px 11px !important; font-size: 12px !important; border-radius: 999px !important; min-height: 0; }
 .tvbtn.on { background: var(--gold); color: #2a1d00; border-color: transparent; }
 .screen { max-width: 540px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; min-height: calc(100vh - 24px); min-height: calc(100dvh - 24px); justify-content: center; }
@@ -945,7 +949,116 @@ html.fgm-on body { background: #050506; }
 <script>
 (function () {
 'use strict';
-var h = React.createElement;
+/* ======================================================================
+   LANGUAGE. English is the source text; Arabic is looked up by exact string (menus, notes, buttons, results, canvas labels).
+   Chosen on the first screen of every visit and in Settings. Anything not in the table simply stays English.
+   ====================================================================== */
+var LANG = { v: 'en' };
+var AR = {
+  'How to play': 'طريقة اللعب', 'Prop your phone up close: your upper body is the controller.': 'ثبّت جوالك قريب منك: جسمك العلوي هو أداة التحكم.',
+  'PUNCH': 'لكمة', 'MOVE': 'حركة', 'BLOCK': 'صدّ', 'Jab: snap an arm straight out. Hook: sweep it sideways. Uppercut: drive it up from low': 'جاب: مدّ يدك للأمام بسرعة. هوك: حرّكها للجنب. أبركت: ارفعها من تحت لفوق',
+  'Lean your upper body, out of the red zones': 'ميّل جسمك العلوي بعيد عن المناطق الحمراء', 'Drop your head under high shots': 'نزّل راسك تحت الضربات العالية', 'Both fists up at your face': 'القبضتين قدام وجهك',
+  'Choose your language · اختر اللغة': 'اختر اللغة · Choose your language',
+  'ENGLISH': 'English',
+  'ENABLE CAMERA': 'شغّل الكاميرا', 'TRY AGAIN': 'حاول مرة ثانية', 'PLEASE WAIT…': 'انتظر…',
+  'Your body is the controller.': 'جسمك هو أداة التحكم.',
+  'Pose is read on this device. No video is recorded or uploaded.': 'الحركة تُقرأ على جهازك فقط. ما يتم تسجيل أو رفع أي فيديو.',
+  'KEYBOARD MODE (NO CAMERA)': 'وضع الكيبورد (بدون كاميرا)',
+  'Choose Allow in the browser prompt…': 'اختر «سماح» من رسالة المتصفح…', 'Loading the pose model…': 'جاري تحميل نموذج الحركة…',
+  'Camera permission was denied.': 'تم رفض إذن الكاميرا.',
+  'On iPhone: tap the aA icon in the address bar, then Website Settings, then Camera, then Allow. After that press TRY AGAIN.': 'على الآيفون: اضغط أيقونة aA في شريط العنوان، ثم إعدادات الموقع، ثم الكاميرا، ثم سماح. بعدها اضغط حاول مرة ثانية.',
+  'Allow camera access in the browser prompt or in the site settings next to the address bar, then try again.': 'اسمح بالكاميرا من رسالة المتصفح أو من إعدادات الموقع، ثم حاول مرة ثانية.',
+  'Plug in or enable a camera, then try again.': 'وصّل كاميرا أو فعّلها ثم حاول مرة ثانية.',
+  'Close other apps or tabs that use the camera, then try again.': 'سكّر التطبيقات أو التبويبات الثانية اللي تستخدم الكاميرا ثم حاول مرة ثانية.',
+  'Reload the page and try again.': 'حدّث الصفحة وحاول مرة ثانية.',
+  'Open this page over HTTPS or from http://localhost.': 'افتح الصفحة عبر HTTPS.',
+  'Use a current version of Chrome, Edge, Safari or Firefox.': 'استخدم نسخة حديثة من كروم أو سفاري أو فايرفوكس.',
+  'PLAY ONLINE': 'العب أونلاين', 'TRAINING': 'تدريب', 'SETTINGS': 'الإعدادات', 'Settings': 'الإعدادات',
+  'TV': 'تلفزيون', 'TV: ON': 'تلفزيون: شغّال', 'TV mode': 'وضع التلفزيون', 'FIGHTER': 'المقاتل', 'Choose your fighter': 'اختر مقاتلك',
+  'Previous fighter': 'المقاتل السابق', 'Next fighter': 'المقاتل التالي', 'MODEL UNAVAILABLE': 'النموذج غير متوفر',
+  'Raise your ': 'ارفع ', 'RIGHT HAND': 'يدك اليمنى', ' and hold the ring over a button': ' وثبّت الحلقة فوق الزر',
+  'RANDOM MATCH': 'مباراة عشوائية', 'SOON': 'قريباً', 'PRIVATE ROOM': 'غرفة خاصة', 'BACK': 'رجوع', 'RETRY': 'إعادة المحاولة',
+  'Waking the server. The first time can take up to a minute.': 'جاري تشغيل السيرفر. أول مرة ممكن ياخذ دقيقة.', 'Could not connect.': 'ما قدرنا نتصل.',
+  'Server connected': 'السيرفر متصل', 'Connecting…': 'جاري الاتصال…', 'Offline': 'غير متصل', 'No server': 'لا يوجد سيرفر', 'Local test': 'تجربة محلية',
+  'CREATE ROOM': 'إنشاء غرفة', 'JOIN ROOM': 'دخول غرفة', 'JOIN': 'دخول', 'CANCEL': 'إلغاء', 'Room code': 'رمز الغرفة', 'ROOM CODE': 'رمز الغرفة',
+  'VS AI (OFFLINE)': 'ضد الكمبيوتر (بدون نت)', 'Joining room ': 'جاري الدخول للغرفة ', 'You were invited to room ': 'تمت دعوتك للغرفة ', '. Enable your camera to join.': '. شغّل الكاميرا للدخول.',
+  'OPPONENT': 'الخصم', 'YOU': 'أنت', 'Waiting…': 'بانتظاره…', 'NOT JOINED': 'ما دخل', 'CONNECTED': 'متصل', 'DISCONNECTED': 'منقطع',
+  'CAMERA READY': 'الكاميرا جاهزة', 'CAMERA NOT READY': 'الكاميرا مو جاهزة', 'READY': 'جاهز', 'NOT READY': 'مو جاهز',
+  'INVITE FRIEND': 'ادعُ صديقك', 'COPY CODE': 'نسخ الرمز', 'LEAVE': 'خروج', 'LEAVE ROOM': 'مغادرة الغرفة', 'Code copied': 'تم نسخ الرمز', 'Link copied': 'تم نسخ الرابط',
+  'Send the link or the code to your friend. Only two players fit in a room.': 'ارسل الرابط أو الرمز لصديقك. الغرفة تتسع للاعبين اثنين فقط.',
+  'Waiting for your opponent to get ready.': 'بانتظار خصمك يجهز.', 'Your opponent is ready. Press READY to fight.': 'خصمك جاهز. اضغط جاهز للقتال.',
+  'Press READY when you are set. The fight starts when both players are ready.': 'اضغط جاهز لما تكون مستعد. القتال يبدأ لما يجهز اللاعبان.',
+  'Both players are ready. The fight starts…': 'اللاعبان جاهزان. القتال يبدأ…', 'Both players are ready. The fight is starting…': 'اللاعبان جاهزان. القتال يبدأ…',
+  'Your opponent left the match.': 'خصمك طلع من المباراة.', 'Leaving the room…': 'جاري مغادرة الغرفة…',
+  'Your name (shown to your opponent)': 'اسمك (يظهر للخصم)', 'Player': 'لاعب',
+  'Dodge sensitivity': 'حساسية المراوغة', 'Punch sensitivity': 'حساسية اللكمة', 'Neutral dead zone': 'المنطقة الميتة',
+  'MOVEMENT CHECK': 'فحص الحركة', 'PUNCH TEST': 'فحص اللكمات', 'FIGHT SETUP': 'إعداد القتال', 'HOW TO PLAY': 'طريقة اللعب', 'CAMERA OFF': 'إيقاف الكاميرا',
+  'CAMERA: FRONT': 'الكاميرا: أمامية', 'CAMERA: REAR (TV)': 'الكاميرا: خلفية (تلفزيون)', 'LANGUAGE: ENGLISH': 'اللغة: English', 'LANGUAGE: ARABIC': 'اللغة: العربية',
+  'CALIBRATION': 'المعايرة', 'GET IN POSITION': 'خذ وضعيتك', 'GET READY': 'استعد', 'FIGHT!': 'قاتل!', 'FIGHT': 'قتال',
+  'Stand so your head and both shoulders fill the frame, fists up. Hold still.': 'قف بحيث يظهر راسك وكتفيك بالكامل، والقبضتين مرفوعة. ثبّت.',
+  'Point the camera at your head and shoulders.': 'وجّه الكاميرا على راسك وكتفيك.', 'Hold still for a moment.': 'ثبّت لحظة.', 'Hold still…': 'ثبّت…',
+  'Step a little closer.': 'قرّب شوي.', 'Step back a little.': 'ابعد شوي.', 'Step back a little: I need your head and both shoulders in view.': 'ابعد شوي: أحتاج أشوف راسك وكتفيك.',
+  'I cannot see your head and both shoulders. Step back until they fit.': 'ما أشوف راسك وكتفيك. ابعد لين يظهرون.',
+  'Raise both fists into view, like a boxing guard.': 'ارفع القبضتين قدام الكاميرا مثل وضعية الملاكم.',
+  'Show your LEFT hand: bring it into view.': 'وري يدك اليسرى: دخّلها بالكاميرا.', 'Show your RIGHT hand: bring it into view.': 'وري يدك اليمنى: دخّلها بالكاميرا.',
+  'Raise your LEFT hand': 'ارفع يدك اليسرى', 'Raise your RIGHT hand': 'ارفع يدك اليمنى',
+  'Lift your left hand above your shoulder': 'ارفع يدك اليسرى فوق كتفك', 'Lift your right hand above your shoulder': 'ارفع يدك اليمنى فوق كتفك',
+  'All set. Hold your right hand over DONE for a second.': 'كل شي تمام. ثبّت يدك اليمنى فوق «تم» لثانية.', 'DONE': 'تم',
+  'Move your RIGHT hand to steer the cursor. Hold it over a button for a second to select.': 'حرّك يدك اليمنى لتحريك المؤشر. ثبّته فوق الزر لثانية للاختيار.',
+  'Your camera tracking is not ready. Show your shoulders and both hands.': 'التتبع مو جاهز. وري كتفيك ويديك.',
+  'Show your shoulders to continue': 'وري كتفيك للمتابعة',
+  'Did that go the way you wanted? NEXT keeps it. REDO throws it away and you try again.': 'طلعت زي ما تبي؟ «التالي» يحفظها، و«إعادة» يلغيها وتجرب مرة ثانية.',
+  'NEXT': 'التالي', 'REDO': 'إعادة', 'RESTART STEP': 'إعادة الخطوة', 'SKIP STEP': 'تخطي الخطوة', 'SKIP ALL': 'تخطي الكل', 'SKIP': 'تخطي', 'START': 'ابدأ',
+  'Throw 3 straight punches with your RIGHT hand, at the camera.': 'اضرب 3 لكمات مستقيمة بيدك اليمنى باتجاه الكاميرا.',
+  'Now 3 straight punches with your LEFT hand.': 'الحين 3 لكمات مستقيمة بيدك اليسرى.', 'Quick: RIGHT, RIGHT, LEFT.': 'بسرعة: يمين، يمين، يسار.',
+  'Lean to your LEFT and throw a RIGHT punch. Twice.': 'ميّل لليسار واضرب لكمة يمين. مرتين.',
+  'Just tip your head and shoulders a little to your left': 'ميّل راسك وكتفيك شوي لليسار', 'Just tip your head and shoulders a little to your right': 'ميّل راسك وكتفيك شوي لليمين',
+  'Made this hand more sensitive. Try again.': 'زدنا حساسية هذي اليد. جرّب مرة ثانية.', 'Keep going…': 'كمّل…',
+  'Saved on this device. If the camera or its position changes, run FIGHT SETUP again from Settings.': 'انحفظ على جهازك. لو تغيرت الكاميرا أو مكانها، أعد إعداد القتال من الإعدادات.',
+  'DISTANCE': 'المسافة', 'RIGHT JABS': 'لكمات اليمين', 'LEFT JABS': 'لكمات اليسار', 'FAST COMBO': 'كومبو سريع', 'MOVE AND PUNCH': 'تحرّك واضرب',
+  'MOVEMENT CHECK COMPLETE': 'اكتمل فحص الحركة', 'DO ALL 5 MOVES': 'سوّ الحركات الخمس', 'Lean LEFT': 'ميّل يسار', 'Lean RIGHT': 'ميّل يمين', 'DUCK': 'انحنِ', 'Drop your head low': 'نزّل راسك',
+  'LEFT': 'يسار', 'RIGHT': 'يمين', 'LEFT HAND': 'اليد اليسرى', 'MIRRORED': 'معكوس',
+  'PAUSED': 'إيقاف مؤقت', 'RESUME': 'كمّل', 'MAIN MENU': 'القائمة الرئيسية', 'MENU': 'القائمة',
+  'Pause: raise both hands above your head for 1.5 s': 'للإيقاف المؤقت: ارفع يديك فوق راسك لمدة 1.5 ثانية',
+  'Settings and Main Menu leave this match. Move your right hand to steer the cursor and hold it over a button.': 'الإعدادات والقائمة الرئيسية تطلعك من المباراة. حرّك يدك اليمنى وثبّتها فوق الزر.',
+  'Leave (forfeits): raise both hands above your head for 1.5 s': 'للانسحاب (تخسر): ارفع يديك فوق راسك لمدة 1.5 ثانية',
+  'ATTACK': 'هجوم', 'DEFEND': 'دفاع', 'DEFEND!': 'دافع!', 'DODGED!': 'تفاديت!', 'MISSED!': 'أخطأت!', 'BLOCKED': 'صدّيت', 'COUNTER NOW!': 'رد الحين!', 'TIRED': 'تعبان',
+  'K.O.!': 'ضربة قاضية!', 'TIME!': 'انتهى الوقت!', 'KNOCKED OUT': 'ضربة قاضية', 'OPPONENT LEFT': 'الخصم انسحب', 'KO': 'KO',
+  'YOU WIN!': 'فزت!', 'YOU LOSE': 'خسرت', 'DRAW': 'تعادل', 'MATCH OVER': 'انتهت المباراة', 'GOOD SESSION': 'جلسة حلوة', 'VICTORY!': 'انتصار!',
+  'PLAY AGAIN': 'العب مرة ثانية', 'BACK TO ROOM (REMATCH)': 'رجوع للغرفة (إعادة)', 'BACK TO LOBBY': 'رجوع للغرفة',
+  'Punches landed': 'اللكمات الناجحة', 'Hits taken': 'الضربات المستلمة', 'Health left': 'الصحة المتبقية',
+  'Time is up. The fighter with more health wins.': 'انتهى الوقت. الفائز هو صاحب الصحة الأكثر.',
+  'The opponent took this one. Rematch?': 'الخصم أخذها. نعيد؟', 'The opponent hit the canvas. K.O.!': 'الخصم طاح. ضربة قاضية!',
+  'CONNECTION LOST. The match cannot continue.': 'انقطع الاتصال. المباراة ما تقدر تكمل.', 'OPPONENT SIGNAL LOST': 'انقطعت إشارة الخصم', 'SIGNAL WEAK': 'الإشارة ضعيفة',
+  'WAITING FOR THE OPPONENT': 'بانتظار الخصم', 'OPPONENT BODY NOT VISIBLE': 'جسم الخصم مو ظاهر',
+  'LOADING KHALID…': 'جاري تحميل خالد…', 'Loading the 3D fighters…': 'جاري تحميل المقاتلين…', 'Victory dance': 'رقصة الفوز',
+  'DANCE! The fighter copies you.': 'ارقص! المقاتل يقلدك.', 'HIDE TUNE': 'إخفاء الضبط', 'TUNE': 'ضبط', 'RESET': 'تصفير',
+  'Press Q to finish': 'اضغط Q للإنهاء', 'STRIKE': 'ضربة', 'SPEED': 'السرعة', 'DEPTH': 'العمق', 'COUNTER ': 'رد ', 'DODGE ': 'تفادي ',
+  'Boxing training with Khalid': 'تدريب بوكسينغ مع خالد', 'Online boxing match': 'مباراة بوكسينغ أونلاين',
+  'In a match, turns last five seconds: ATTACK (you punch) and DEFEND (the opponent attacks; a successful dodge gives you one counter punch).': 'في المباراة، كل دور خمس ثواني: هجوم (أنت تضرب) ودفاع (الخصم يهاجم؛ والمراوغة الناجحة تعطيك لكمة رد).'
+};
+function tr(s) {
+  if (LANG.v !== 'ar' || typeof s !== 'string' || !s) return s;
+  var r = AR[s];
+  if (r !== undefined) return r;
+  var m = /^(.*?)(\s[\d.]+x)$/.exec(s);                                          // "Dodge sensitivity 1.00x"
+  if (m && AR[m[1]] !== undefined) return AR[m[1]] + m[2];
+  return s;
+}
+function setLang(v) { LANG.v = v; try { document.documentElement.lang = v; } catch (e) { } }
+
+var h0 = React.createElement;
+function h(type, props) {                                                          // createElement that translates string children and label/tag props when Arabic is on
+  var a = arguments;
+  if (LANG.v !== 'ar') return h0.apply(null, a);
+  var n = new Array(a.length), did = false, i, c, t;
+  n[0] = type; n[1] = props;
+  for (i = 2; i < a.length; i++) { c = a[i]; if (typeof c === 'string') { t = tr(c); if (t !== c) { did = true; c = t; } } n[i] = c; }
+  if (typeof type === 'string') { if (did && type === 'p' && !(props && props.dir)) n[1] = Object.assign({}, props, { dir: 'rtl' }); }
+  else if (props && (typeof props.label === 'string' || typeof props.tag === 'string')) { n[1] = Object.assign({}, props); if (typeof props.label === 'string') n[1].label = tr(props.label); if (typeof props.tag === 'string') n[1].tag = tr(props.tag); }
+  return h0.apply(null, n);
+}
+(function () { if (typeof CanvasRenderingContext2D === 'undefined') return; var P = CanvasRenderingContext2D.prototype; ['fillText', 'strokeText', 'measureText'].forEach(function (k) { var o = P[k]; P[k] = function (t) { if (LANG.v === 'ar' && typeof t === 'string') arguments[0] = tr(t); return o.apply(this, arguments); }; }); })();
 var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef;
 
 /* ======================================================================
@@ -2116,7 +2229,7 @@ function useK3() {
 /* ======================================================================
    GAME STATE + RULES
    ====================================================================== */
-function mbDpr() { var st = false; try { st = document.documentElement.classList.contains('stage'); } catch (e) { } return Math.min(window.devicePixelRatio || 1, isLandscape() ? 1.15 : (st ? 2 : 1.5)); }          // TV / sideways: render sharper
+function mbDpr() { var st = false; try { st = document.documentElement.classList.contains('stage'); } catch (e) { } return Math.min(window.devicePixelRatio || 1, isLandscape() ? 1.4 : (st ? 2 : 1.5)); }          // TV / sideways: render sharper
 var W = 480, H = 853;                       // portrait frame 9:16; in landscape W grows to the screen's shape (H stays 853 so every vertical position keeps its meaning)
 var SS = 1, STX = 0, STY = 130;
 function isLandscape() { var vw = window.innerWidth || 390, vh = window.innerHeight || 844; return vw > vh * 1.15; }
@@ -2417,8 +2530,16 @@ function loadArena() {
     ARENA.under = u; ARENA.main = m; ARENA.img = im;
   };
   im.src = 'data:image/png;base64,' + ARENA_BG_B64;
+  if (typeof ARENA_WIDE_B64 !== 'undefined') { var wi = new Image(); wi.onload = function () { ARENA.wideImg = wi; ARENA.wide = null; }; wi.src = 'data:' + (typeof ARENA_WIDE_MIME !== 'undefined' ? ARENA_WIDE_MIME : 'image/jpeg') + ';base64,' + ARENA_WIDE_B64; }
 }
 /* cam in -1..1 (lean); the background moves a little less than the fighters and zooms slightly, always covering the frame */
+function arenaCover() {                                                 // a real wide street picture (when the build has one): cover-fit and bottom-anchored, never stretched, so nothing is blurred or mirrored
+  var wi = ARENA.wideImg;
+  if (ARENA.cov && ARENA.cw === W && ARENA.ch === H) return ARENA.cov;
+  var c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'), k = Math.max(W / wi.width, H / wi.height), dw = wi.width * k, dh = wi.height * k;
+  x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(wi, (W - dw) / 2, H - dh, dw, dh);
+  ARENA.cov = c; ARENA.cw = W; ARENA.ch = H; return c;
+}
 function arenaWide() {                                                  // the sharp picture keeps its scale in the middle and fades into a blurred mirror image on both sides, so the frame can be as wide as the screen
   if (ARENA.wide && ARENA.ww === W && ARENA.wh === H) return ARENA.wide;
   var c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'), dh = 480 * ARENA.img.height / ARENA.img.width, x0 = (W - 480) / 2, k, g;
@@ -2452,7 +2573,8 @@ function drawArena(ctx, fallback, cam) {
   }
   var ac = Math.abs(cam || 0), z = 1 + 0.035 * ac, tx = -(cam || 0) * W * 0.01, dh = W * ARENA.img.height / ARENA.img.width;
   ctx.save(); ctx.translate(W / 2 + tx, H / 2); ctx.scale(z, z); ctx.translate(-W / 2, -H / 2);
-  if (W > 480) ctx.drawImage(arenaWide(), 0, 0, W, H);
+  if (W > 480 && ARENA.wideImg) { ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(1.06, 1.06); ctx.translate(-W / 2, -H / 2); ctx.drawImage(arenaCover(), 0, 0, W, H); ctx.restore(); }          // 6% bigger so the dodge sway never shows an edge
+  else if (W > 480) ctx.drawImage(arenaWide(), 0, 0, W, H);
   else {
     ctx.imageSmoothingEnabled = true; ctx.drawImage(ARENA.under, -40, -40, W + 80, H + 80);
     ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(-40, -40, W + 80, H + 80);
@@ -3342,10 +3464,16 @@ function FgChar(props) {
       h('span', { className: 'dots' }, CHARS.map(function (c) { return h('i', { key: c.id, className: c.id === CHAR.id ? 'on' : '' }); }))),
     h('button', { className: 'btn ghost fgarrow next', 'data-hand': '1', 'aria-label': 'Next fighter', onClick: function () { pick(1); } }, h(Ico, { n: 'back' }), h('i', { className: 'sweep' })));
 }
+function LangPick(props) {
+  return h(FgFrame, null,
+    h('p', { className: 'fgnote' }, 'Choose your language · اختر اللغة'),
+    h('button', { className: 'btn hot', onClick: function () { props.onPick('en'); } }, h('span', { className: 'lb' }, 'ENGLISH'), h('i', { className: 'sweep' })),
+    h('button', { className: 'btn', dir: 'rtl', onClick: function () { props.onPick('ar'); } }, h('span', { className: 'lb' }, 'العربية'), h('i', { className: 'sweep' })));
+}
 function MainMenu(props) {
   var loading = props.k3 === 'loading' || props.k3 === 'idle';
   return h(FgFrame, {
-    corner: h('button', { className: 'btn ghost fgicon' + (props.tv ? ' hot' : ''), 'data-hand': '1', 'aria-pressed': !!props.tv, 'aria-label': 'TV mode', onClick: props.onTv }, h('span', { className: 'lb', style: { padding: 0 } }, props.tv ? 'TV: ON' : 'TV'), h('i', { className: 'sweep' })),
+    corner: h('button', { className: 'tvfab' + (props.tv ? ' on' : ''), 'data-hand': '1', 'aria-pressed': !!props.tv, 'aria-label': 'TV mode', onClick: props.onTv }, h(Ico, { n: 'tv' }), h('span', null, props.tv ? 'TV: ON' : 'TV')),
     pip: props.camOn ? h('div', { className: 'fgpip' }, h(Preview, { tracker: props.tracker, fixed: true })) : null,
     extra: h(FgChar, null)
   },
@@ -3448,6 +3576,7 @@ function SettingsScreen(props) {
     h('div', { className: 'spacer' }),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onMovement }, 'MOVEMENT CHECK'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onPunchTest }, 'PUNCH TEST')),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onFightCal }, 'FIGHT SETUP'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: function () { props.onCamPref(props.camPref === 'environment' ? 'auto' : 'environment'); } }, 'CAMERA: ' + (props.camPref === 'environment' ? 'REAR (TV)' : 'FRONT'))),
+    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onLang }, LANG.v === 'ar' ? 'LANGUAGE: ARABIC' : 'LANGUAGE: ENGLISH'), h('span', { style: { display: 'none' } })),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onHow }, 'HOW TO PLAY'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onCamOff }, 'CAMERA OFF')),
     h('div', { className: 'row' }, h('span', { style: { display: 'none' } }), h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: props.onBack }, 'BACK')));
 }
@@ -4026,7 +4155,8 @@ function App() {
   var tr = useRef(null); if (!tr.current) tr.current = new Tracker();
   var dbg = useRef(null); if (!dbg.current) dbg.current = new DebugInput();
   var tracker = tr.current;
-  var s1 = useState('permission'), screen = s1[0], setScreen = s1[1];      // camera-first launch
+  var s1 = useState(function () { var m = /[?&]lang=(en|ar)/.exec(location.search); if (m) { setLang(m[1]); return 'permission'; } return 'lang'; }), screen = s1[0], setScreen = s1[1];      // the language question comes first, then the camera
+  var lgs = useState(0), bumpLang = lgs[1];
   var s2 = useState('camera'), mode = s2[0], setMode = s2[1];
   var s3 = useState(null), result = s3[0], setResult = s3[1];
   var s4 = useState(0), round = s4[0], setRound = s4[1];
@@ -4085,7 +4215,8 @@ function App() {
   }, [want, camOn, mode, screen, camPref]);
   var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && (screen !== 'fightcal' || fcReview) && screen !== 'celebrate' && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
   var body;
-  if (screen === 'permission') body = h(Permission, {
+  if (screen === 'lang') body = h(LangPick, { onPick: function (v) { setLang(v); setScreen('permission'); } });
+  else if (screen === 'permission') body = h(Permission, {
     tracker: tracker, onBack: home, invite: inviteRef.current,
     onReady: function () { tracker.startTracking(); setMode('camera'); setCamOn(true); setCalibrated(false); setScreen('calibration'); },
     onDebug: function () { tracker.releaseCamera(); setCamOn(false); setCalibrated(false); dbg.current.attach(); setMode('debug'); play('training'); }
@@ -4099,14 +4230,14 @@ function App() {
   else if (screen === 'mp') body = h(MpMatch, { key: 'mp', net: net, tracker: tracker, input: input, onLeave: function () { setScreen('room'); }, onEnd: function (r) { setMpRes(r); celeNext.current = 'mpresult'; setScreen(r && r.outcome === 'win' && mode === 'camera' && K3.status === 'ready' ? 'celebrate' : 'mpresult'); } });
   else if (screen === 'celebrate') body = h(Celebrate, { tracker: tracker, input: input, onDone: function () { setScreen(celeNext.current || 'result'); } });
   else if (screen === 'mpresult') body = h(MpResult, { result: mpRes || {}, onLobby: function () { setScreen(netRef.current.room ? 'lobby' : 'room'); }, onHome: home });
-  else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, camPref: camPref, onCamPref: chooseCam, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
+  else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, camPref: camPref, onCamPref: chooseCam, onLang: function () { setLang(LANG.v === 'ar' ? 'en' : 'ar'); bumpLang(function (n) { return n + 1; }); }, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
   else if (screen === 'punchtest') body = h(PunchTest, { tracker: tracker, onBack: function () { setScreen('settings'); } });
   else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, mode: 'settings', onDone: function () { setScreen('settings'); }, onProgress: function () { }, onBack: function () { setScreen('settings'); } });
   else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); celeNext.current = 'result'; setScreen(r && r.outcome === 'win' && !(mode === 'debug') && K3.status === 'ready' ? 'celebrate' : 'result'); } });
   else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: function () { play(); }, onHome: home });
   /* TV / landscape: the phone sideways (or TV mode on). Menus keep their portrait layout, scaled to the full height of the screen and centred on a blurred copy of the street photo,
      so a TV mirror has no black bars. The match canvas is already full height; its camera preview moves to the side. */
-  var vw = window.innerWidth || 390, vh = window.innerHeight || 844, landscape = vw > vh * 1.15, stage = landscape, full = screen === 'match' || screen === 'mp' || screen === 'celebrate', own = screen === 'menu' || screen === 'online' || screen === 'room' || screen === 'permission';       // 'own' screens lay themselves out for any shape of screen
+  var vw = window.innerWidth || 390, vh = window.innerHeight || 844, landscape = vw > vh * 1.15, stage = landscape, full = screen === 'match' || screen === 'mp' || screen === 'celebrate', own = screen === 'lang' || screen === 'menu' || screen === 'online' || screen === 'room' || screen === 'permission';       // 'own' screens lay themselves out for any shape of screen
   try { document.documentElement.classList.toggle('stage', !!stage); document.documentElement.classList.toggle('fgm-on', !full); } catch (e) { }
   var content = body;
   if (stage && !full && !own) { var sc = Math.min(vh / 700, vw / 390); content = h('div', { className: 'stagebox', style: { width: 390, height: 700, transform: 'scale(' + sc + ')', left: (vw - 390 * sc) / 2, top: (vh - 700 * sc) / 2 } }, body); }
