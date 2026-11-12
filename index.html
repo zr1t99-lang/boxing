@@ -1337,8 +1337,8 @@ function mapCamError(e) {
 }
 
 var CAMPREF = { v: 'auto' };
-try { var cp0 = localStorage.getItem('mb.cam'); if (cp0 === 'user' || cp0 === 'environment' || cp0 === 'auto') CAMPREF.v = cp0; } catch (e) { }
-function setCamPref(v) { CAMPREF.v = v; try { localStorage.setItem('mb.cam', v); } catch (e) { } }
+try { localStorage.removeItem('mb.cam'); localStorage.removeItem('mb.tv'); } catch (e) { }          // the rear camera is never remembered: every visit starts on the front camera
+function setCamPref(v) { CAMPREF.v = v; }                         // TV mode (rear camera) lasts only until the TV button is pressed again or the page is reloaded
 function desiredFacing() { return CAMPREF.v === 'environment' ? 'environment' : 'user'; }          // front camera by default; the TV button (or Settings) picks the rear one
 function Tracker() {
   this.facing = desiredFacing();                                  // sideways (TV) uses the rear camera, upright the front one, unless the player chose
