@@ -46,7 +46,7 @@ h1, h2, h3, p { margin: 0; }
 .stage .mfs { background: transparent; }
 .stage .mwrap { width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; aspect-ratio: auto; }
 .stage .mwrap { overflow: hidden; }
-.stage .mcv { object-fit: contain; transform: scale(1.1); transform-origin: 50% 42%; }          /* landscape: a slight camera zoom-in so the fighters are not small */
+.stage .mcv { object-fit: contain;  }
 .stage .mpip { position: fixed; left: 1.5vw; right: auto; top: auto; bottom: 3vh; width: min(15vw, 24vh); }
 .stage .mpip.lowpip { top: auto; bottom: 3vh; }
 .stage .mend { left: 30%; right: 30%; }
@@ -364,6 +364,71 @@ html.fgm-on body { background: #050506; }
 }
 @media (max-height: 560px) and (max-aspect-ratio: 23/20) { .fgmenu { gap: 8px; } .fgm .btn { min-height: 46px; font-size: 17px; } .fghero { top: 18%; } }
 @media (max-height: 430px) and (min-aspect-ratio: 23/20) { .fgmenu { gap: 8px; margin-top: 1vh; } .fgm .btn { min-height: 44px; font-size: 17px; } .fgm .btn.ghost { min-height: 38px; } }
+
+
+/* ===== LANDSCAPE SCREENS (settings, calibration): built for 16:9, not a stretched portrait column ===== */
+.setl, .call { position: fixed; inset: 0; z-index: 3; display: grid; padding: max(14px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); color: var(--ink); background: linear-gradient(180deg, rgba(5,6,12,.72), rgba(5,6,12,.55) 55%, rgba(5,6,12,.78)); }
+.setl { grid-template-columns: minmax(0, 27%) minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "logo title title" "hero cards btns" "back cards btns"; column-gap: 2.2vw; row-gap: 1.2vh; }
+.setl .fghero { left: 0; top: 0; transform: none; height: 100%; width: 34%; opacity: 0; z-index: 0; }
+.setl .fghero.on { opacity: 1; }
+.setl-logo { grid-area: logo; position: relative; z-index: 2; display: flex; align-items: flex-start; }
+.setl-logo .fglogo { transform: skewX(-8deg) scale(.55); transform-origin: top left; }
+.setl-title { grid-area: title; position: relative; z-index: 2; text-align: center; }
+.setl-title h2, .cal-title h2 { margin: 0; font: italic 900 clamp(26px, 7vh, 58px)/1 var(--body); letter-spacing: .04em; color: #fff; text-transform: uppercase; }
+.setl-title h2::before, .setl-title h2::after, .cal-title h2::before, .cal-title h2::after { content: '/'; color: var(--gold); margin: 0 .5em; }
+.setl-title p, .cal-title p { margin: .5vh 0 0; font: 500 clamp(12px, 2.8vh, 20px)/1.2 var(--body); color: #e8eaf2; }
+.setl-cards { grid-area: cards; position: relative; z-index: 2; display: flex; flex-direction: column; gap: 1.6vh; align-self: center; }
+.setl-panel { border: 2px solid rgba(255,196,46,.75); border-radius: 18px; background: linear-gradient(180deg, rgba(18,18,22,.92), rgba(8,8,11,.94)); box-shadow: 0 0 18px rgba(255,196,46,.18), inset 0 0 0 1px rgba(255,255,255,.04); padding: 1.6vh 1.4vw; display: flex; flex-direction: column; gap: 1.2vh; }
+.setl-panel h3 { margin: 0; display: flex; align-items: center; gap: .6em; font: italic 900 clamp(14px, 3.4vh, 26px)/1 var(--body); letter-spacing: .03em; color: #fff; text-transform: uppercase; }
+.setl-panel h3 svg { width: 1.3em; height: 1.3em; color: var(--gold); } .setl-panel h3 small { font: italic 700 .6em/1 var(--body); color: #c8ccd8; letter-spacing: 0; }
+.setl .dsl { display: grid; grid-template-columns: 1fr auto; gap: .4vh 1vw; background: rgba(255,255,255,.04); border-radius: 12px; padding: 1vh 1vw; align-items: center; }
+.setl .dsl span { font: 600 clamp(12px, 2.7vh, 19px)/1.1 var(--body); color: #fff; }
+.setl .dsl em { font: 700 clamp(12px, 2.7vh, 19px)/1 var(--body); font-style: normal; color: #fff; }
+.setl .dsl input { grid-column: 1 / 3; height: clamp(26px, 5.5vh, 40px); accent-color: var(--gold); }
+.setl .fld input { width: 100%; box-sizing: border-box; height: clamp(40px, 8vh, 62px); border-radius: 12px; border: 2px solid rgba(255,255,255,.18); background: rgba(0,0,0,.55); color: #fff; font: 600 clamp(16px, 3.6vh, 26px)/1 var(--body); padding: 0 14px; }
+.setl-btns { grid-area: btns; position: relative; z-index: 2; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: minmax(0, 1fr); gap: 1.6vh 1.2vw; align-self: stretch; padding: 2vh 0 1vh; }
+.setl .btn::before, .setl .btn::after, .call .btn::before, .call .btn::after { display: none; }
+.setl .btn, .call .btn { display: flex; align-items: center; justify-content: flex-start; position: relative; text-shadow: none; }
+.setl .btn .ic, .call .btn .ic { position: static; width: 1.6em; height: 1.6em; flex: none; }
+.setl .btn .lb, .call .btn .lb { flex: 1; text-align: start; padding-left: 0; }
+.setl-back .btn .lb, .cal-nav .btn .lb { text-align: center; }
+.setl .btn:hover:not([disabled]), .call .btn:hover:not([disabled]), .setl .btn.hand-hover, .call .btn.hand-hover { transform: none; border-color: #fff; color: var(--gold); }
+.setl .btn.gold:hover:not([disabled]), .call .btn.gold:hover:not([disabled]), .setl .btn.gold.hand-hover, .call .btn.gold.hand-hover { color: #1a1200; border-color: #fff; }
+@media (max-height: 460px) {
+  .setl { row-gap: 0; } .setl-logo .fglogo { transform: skewX(-8deg) scale(.34); } .cal-logo .fglogo { transform: skewX(-8deg) scale(.3); }
+  .setl-panel { padding: 1vh 1vw; gap: .6vh; } .setl .dsl { padding: .5vh 1vw; gap: 0 1vw; } .setl .dsl input { height: 20px; } .setl .fld input { height: 38px; }
+  .setl-cards { gap: 1vh; } .setl-btns { padding: 1vh 0 0; gap: 1vh 1vw; }
+}
+.setl-btns .btn, .setl-back .btn, .cal-nav .btn:not(.gold) { flex-direction: row; align-items: center; box-shadow: none; }
+.setl-back .btn.gold { background: linear-gradient(180deg, #ffe27a, #ffb400); color: #1a1200; border: 2px solid #ffd54a; }
+.cal-nav .btn:not(.gold) { border: 2px solid rgba(255,196,46,.8); background: linear-gradient(180deg, rgba(26,26,30,.95), rgba(8,8,11,.96)); color: #fff; }
+.setl-btns .btn { min-height: 0; height: 100%; justify-content: flex-start; gap: .7em; padding: 0 1em; font-size: clamp(13px, 3.4vh, 24px); text-align: start; border: 2px solid rgba(255,196,46,.8); border-radius: 18px; background: linear-gradient(180deg, rgba(26,26,30,.95), rgba(8,8,11,.96)); color: #fff; }
+.setl-btns .btn .ic svg { width: 1.7em; height: 1.7em; color: var(--gold); }
+.setl-btns .btn.wide { grid-column: 1 / 3; }
+.setl-back { grid-area: back; position: relative; z-index: 3; align-self: end; }
+.setl-back .btn, .cal-nav .btn { min-height: clamp(44px, 9vh, 70px); width: min(100%, 300px); font-size: clamp(16px, 3.8vh, 28px); border-radius: 14px; }
+.cal-nav .btn.gold { background: linear-gradient(180deg, #ffe27a, #ffb400); color: #1a1200; border-color: #ffd54a; }
+.cal-nav .btn:disabled { opacity: .45; }
+.call { grid-template-columns: minmax(0, 24%) minmax(0, 1fr) minmax(0, 24%); grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "logo title title" "steps steps steps" "left mid right" "nav nav nav"; gap: 1.2vh 1.6vw; }
+.cal-title { grid-area: title; text-align: center; position: relative; z-index: 2; } .cal-logo { grid-area: logo; position: relative; z-index: 2; } .cal-logo .fglogo { transform: skewX(-8deg) scale(.5); transform-origin: top left; }
+.cal-steps { grid-area: steps; display: flex; justify-content: center; gap: 1.2vw; position: relative; z-index: 2; }
+.cal-steps span { display: inline-flex; align-items: center; gap: .6em; padding: .7vh 1.8vw; border: 2px solid rgba(255,255,255,.35); border-radius: 12px; background: rgba(10,10,14,.9); color: #fff; font: italic 800 clamp(12px, 2.8vh, 20px)/1 var(--body); letter-spacing: .04em; text-transform: uppercase; transform: skewX(-10deg); }
+.cal-steps span.on { background: linear-gradient(180deg, #ffe27a, #ffb400); color: #1a1200; border-color: #ffd54a; }
+.cal-panel { position: relative; z-index: 2; align-self: center; border: 2px solid rgba(255,196,46,.75); border-radius: 20px; background: linear-gradient(180deg, rgba(18,18,22,.92), rgba(8,8,11,.94)); padding: 1.6vh 1vw; display: flex; flex-direction: column; gap: 1.2vh; box-shadow: 0 0 18px rgba(255,196,46,.18); }
+.cal-left { grid-area: left; } .cal-right { grid-area: right; }
+.cal-panel h3 { margin: 0; font: italic 900 clamp(14px, 3.2vh, 24px)/1 var(--body); letter-spacing: .03em; text-transform: uppercase; color: #fff; }
+.cal-panel .tip { display: flex; align-items: center; gap: .6em; font: 600 clamp(12px, 2.7vh, 19px)/1.15 var(--body); color: #fff; padding: .8vh 0; border-top: 1px solid rgba(255,196,46,.25); }
+.cal-panel .tip i { flex: none; width: 1.5em; height: 1.5em; border-radius: 50%; display: grid; place-items: center; background: #3a3a40; color: #999; font-style: normal; font-weight: 900; font-size: .85em; } .cal-panel .tip.ok i { background: var(--gold); color: #1a1200; }
+.cal-det { display: flex; align-items: center; gap: .6em; padding: .8vh .8vw; border: 2px solid rgba(255,255,255,.3); border-radius: 999px; font: 600 clamp(12px, 2.8vh, 20px)/1 var(--body); color: #fff; background: rgba(0,0,0,.4); }
+.cal-det i { flex: none; width: 1.5em; height: 1.5em; border-radius: 50%; display: grid; place-items: center; background: #444; font-style: normal; font-weight: 900; font-size: .85em; color: #111; }
+.cal-det.on { border-color: #36e07a; } .cal-det.on i { background: #36e07a; }
+.cal-mid { grid-area: mid; position: relative; z-index: 2; min-height: 0; border: 3px solid var(--gold); border-radius: 22px; overflow: hidden; box-shadow: 0 0 22px rgba(255,196,46,.35); background: #05071c; }
+.cal-mid .preview { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; border: 0; border-radius: 0; }
+.cal-mid .preview video { width: 100%; height: 100%; object-fit: cover; }
+.cal-mid .pill { position: absolute; left: 14px; top: 12px; z-index: 3; display: inline-flex; align-items: center; gap: .5em; padding: .8vh 1vw; border-radius: 999px; background: rgba(0,0,0,.7); color: #fff; font: 800 clamp(11px, 2.4vh, 17px)/1 var(--body); letter-spacing: .04em; } .cal-mid .pill b { width: .8em; height: .8em; border-radius: 50%; background: #3ddc84; box-shadow: 0 0 8px #3ddc84; }
+.cal-mid .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; background: rgba(255,255,255,.15); z-index: 3; } .cal-mid .bar i { display: block; height: 100%; background: var(--gold); }
+.cal-nav { grid-area: nav; position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: center; gap: 1.6vw; }
+.cal-nav p { margin: 0; text-align: center; font: 600 clamp(13px, 3.2vh, 24px)/1.2 var(--body); color: #fff; } .cal-nav .btn:last-child { justify-self: end; }
 
 /* fighter switch */
 .fgchar { grid-area: mid; align-self: end; justify-self: center; position: relative; z-index: 5; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
@@ -959,6 +1024,7 @@ var AR = {
   'PUNCH': 'لكمة', 'MOVE': 'حركة', 'BLOCK': 'صدّ', 'Jab: snap an arm straight out. Hook: sweep it sideways. Uppercut: drive it up from low': 'جاب: مدّ يدك للأمام بسرعة. هوك: حرّكها للجنب. أبركت: ارفعها من تحت لفوق',
   'Lean your upper body, out of the red zones': 'ميّل جسمك العلوي بعيد عن المناطق الحمراء', 'Drop your head under high shots': 'نزّل راسك تحت الضربات العالية', 'Both fists up at your face': 'القبضتين قدام وجهك',
   'Choose your language · اختر اللغة': 'اختر اللغة · Choose your language',
+  'Adjust game sensitivity and preferences': 'اضبط الحساسية والتفضيلات', 'Sensitivity': 'الحساسية', 'Player name ': 'اسم اللاعب ', '(shown to your opponent)': '(يظهر لخصمك)', 'Calibration': 'المعايرة', 'Set up your stance and show your hands': 'خذ وضعيتك ووري يديك', 'Camera': 'الكاميرا', '2 Hands': 'اليدين', 'Hold still': 'ثبّت', 'Get in position': 'خذ وضعيتك', 'Position your upper body in the frame': 'ضع جسمك العلوي داخل الإطار', 'Keep your shoulders visible': 'خلّ كتفيك ظاهرين', 'Use good lighting': 'استخدم إضاءة جيدة', 'Detecting': 'الكشف', 'Right Hand': 'اليد اليمنى', 'Left Hand': 'اليد اليسرى', 'Shoulders': 'الكتفين', 'CAMERA ON': 'الكاميرا شغّالة',
   'ENGLISH': 'English',
   'ENABLE CAMERA': 'شغّل الكاميرا', 'TRY AGAIN': 'حاول مرة ثانية', 'PLEASE WAIT…': 'انتظر…',
   'Your body is the controller.': 'جسمك هو أداة التحكم.',
@@ -2201,7 +2267,10 @@ K3.draw = function (ctx, G, time) {
   if (K3.status !== 'ready') return false;
   try {
     var dpr = mbDpr();
-    if (K3.dpr !== dpr || K3.fw !== W) { K3.dpr = dpr; K3.fw = W; K3.renderer.setSize(Math.round(W * dpr), Math.round(H * dpr), false); K3.camera.aspect = W / H; K3.camera.updateProjectionMatrix(); }
+    var land = W > 480, kz = land ? LANDZ : 1, kx = land ? W / 2 - W / (2 * kz) : 0, ky = land ? LANDY0 : 0;
+    if (K3.dpr !== dpr || K3.fw !== W) { K3.dpr = dpr; K3.fw = W; K3.renderer.setSize(Math.round(W * dpr), Math.round(H * dpr), false); K3.camera.aspect = W / H; }
+    if (land) K3.camera.setViewOffset(W, H, kx, ky, W / kz, H / kz); else if (K3.camera.view && K3.camera.view.enabled) K3.camera.clearViewOffset();      // landscape: render only the zoomed window, at full pixel density
+    K3.camera.updateProjectionMatrix();
     var rig = K3.rig.pose(k3Opts(G, time)), i, q;
     for (i = 0; i < rig.n; i++) { q = rig.q[i]; K3.bones[i].quaternion.set(q[0], q[1], q[2], q[3]); }
     K3.bones[0].position.set(rig.hips[0], rig.hips[1], rig.hips[2]);
@@ -2215,7 +2284,7 @@ K3.draw = function (ctx, G, time) {
       }
     }
     K3.renderer.render(K3.scene, K3.camera);
-    ctx.drawImage(K3.canvas, -STX, -STY, W, H);           // drawScene is inside translate(STX, STY): undo it so the model fills the whole frame
+    ctx.drawImage(K3.canvas, kx - STX, ky - STY, W / kz, H / kz);           // drawScene is inside translate(STX, STY): undo it so the model fills the whole frame (or the zoomed window of it)
     return true;
   } catch (e) { K3.status = 'error'; K3.error = 'Rendering failed: ' + (e && e.message); return false; }
 };
@@ -2229,11 +2298,12 @@ function useK3() {
 /* ======================================================================
    GAME STATE + RULES
    ====================================================================== */
-function mbDpr() { var st = false; try { st = document.documentElement.classList.contains('stage'); } catch (e) { } return Math.min(window.devicePixelRatio || 1, isLandscape() ? 1.4 : (st ? 2 : 1.5)); }          // TV / sideways: render sharper
+function mbDpr() { var st = false; try { st = document.documentElement.classList.contains('stage'); } catch (e) { } return Math.min(window.devicePixelRatio || 1, isLandscape() ? 1.5 : (st ? 2 : 1.5)); }          // TV / sideways: render sharper
 var W = 480, H = 853;                       // portrait frame 9:16; in landscape W grows to the screen's shape (H stays 853 so every vertical position keeps its meaning)
 var SS = 1, STX = 0, STY = 130;
+var LANDZ = 1.35, LANDY0 = 125, HUDS = 1;      // landscape: the world (street + fighters) is zoomed 1.35x inside the canvas, window top at y=125; the HUD is drawn afterwards, unzoomed, scaled by HUDS
 function isLandscape() { var vw = window.innerWidth || 390, vh = window.innerHeight || 844; return vw > vh * 1.15; }
-function frameSize() { if (!isLandscape()) return 480; var vw = window.innerWidth || 844, vh = window.innerHeight || 390; return Math.max(853, Math.min(1650, Math.round(853 * vw / vh))); }
+function frameSize() { if (!isLandscape()) return 480; var vw = window.innerWidth || 844, vh = window.innerHeight || 390; return Math.max(853, Math.min(2300, Math.round(853 * vw / vh))); }
 function setFrameW(w) { W = w; STX = (w - 480) / 2; }              // the 480-wide arena geometry (zones, popups, 2D layers) stays centred in a wider frame
 function reframe(canvas, ctx, bg) {                                 // called every frame by the match screens: follows rotation
   var w = frameSize(), d = mbDpr();
@@ -3024,18 +3094,18 @@ function drawAnnounce(ctx, G) {
   var T = G.turn; if (!T || T.age > 1.7 || G.phase !== 'fight') return;
   var kind = T.who, age = T.age, k = age < 0.16 ? age / 0.16 : 1, sc = age < 0.16 ? 1.55 - 0.55 * (1 - Math.pow(1 - k, 3)) : 1 + 0.015 * Math.max(0, 1 - (age - 0.16) * 2), al = age < 0.12 ? age / 0.12 : age < 1.0 ? 1 : Math.max(0, 1 - (age - 1.0) / 0.7);
   if (!BANNER[kind]) BANNER[kind] = makeBanner(kind);
-  ctx.save(); ctx.globalAlpha = clamp(al, 0, 1); ctx.translate(W / 2, 232); ctx.scale(sc, sc); ctx.drawImage(BANNER[kind], -240, -100, 480, 200); ctx.restore();
+  ctx.save(); ctx.globalAlpha = clamp(al, 0, 1); ctx.translate(W / 2, HUDS > 1 ? 176 : 232); ctx.scale(sc * (HUDS > 1 ? 0.72 : 1), sc * (HUDS > 1 ? 0.72 : 1)); ctx.drawImage(BANNER[kind], -240, -100, 480, 200); ctx.restore();
 }
 /* the real turn countdown (bottom-right): stopwatch icon and a big white number */
 function drawTurnTimer(ctx, G) {
   var T = G.turn; if (!T || G.phase !== 'fight') return;
-  var n = Math.max(0, Math.round(T.t)), cx = 396, cy = 786;
+  var n = Math.max(0, Math.round(T.t)), cx = W - 84, cy = H - 67;
   ctx.save(); ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 3.2; ctx.lineCap = 'round'; ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 6;
   ctx.beginPath(); ctx.arc(cx, cy + 3, 17, 0, 6.2832); ctx.stroke();
   ctx.fillRect(cx - 4, cy - 19, 8, 5); ctx.fillRect(cx - 1.5, cy - 15, 3, 3);
   ctx.beginPath(); ctx.moveTo(cx + 13, cy - 10); ctx.lineTo(cx + 17, cy - 14); ctx.stroke();
   ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx, cy + 3); ctx.lineTo(cx, cy - 8); ctx.moveTo(cx, cy + 3); ctx.lineTo(cx + 7, cy + 7); ctx.stroke();
-  ctx.font = 'italic 900 54px ' + HFONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(n), 440, cy + 4);
+  ctx.font = 'italic 900 54px ' + HFONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(n), cx + 44, cy + 4);
   ctx.restore();
 }
 function drawDev(ctx, G) {
@@ -3049,6 +3119,7 @@ function drawDev(ctx, G) {
 }
 var HUDX = 0;
 function drawHUD(ctx, G, time) {
+  BAR.x1 = W / 2 - 32;                                                         // bars always end next to the centre badge (208 at 480 wide)
   var hg = ctx.createLinearGradient(0, 0, 0, 120); hg.addColorStop(0, 'rgba(0,0,0,.55)'); hg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = hg; ctx.fillRect(-HUDX, 0, W + 2 * HUDX, 120);
   loadFace();
@@ -3063,13 +3134,13 @@ function drawHUD(ctx, G, time) {
   if (G.combo > 1) { var sc = 1 + 0.12 * Math.sin(time * 14); textOutlined(ctx, 'COMBO x' + G.combo, W / 2, 138, 20 * sc, '#ffc42e'); }
   if (G.a.state === 'windup' && G.a.atk) {
     var pu = 0.5 + 0.5 * Math.sin(time * 20);
-    rr(ctx, 50, 134, 380, 40, 14); ctx.fillStyle = 'rgba(255,59,79,' + (0.78 + 0.2 * pu) + ')'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
+    rr(ctx, W / 2 - 190, 134, 380, 40, 14); ctx.fillStyle = 'rgba(255,59,79,' + (0.78 + 0.2 * pu) + ')'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
     ctx.font = '15px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('INCOMING! ' + G.a.atk.label, W / 2, 155);
   }
   // 3D model status: never hide that the basic avatar is a fallback
   if (K3.status === 'loading') { ctx.font = '13px ' + FONT; ctx.fillStyle = '#ffc42e'; ctx.textAlign = 'center'; ctx.fillText('LOADING KHALID…', W / 2, H - 150); }
   else if (K3.status === 'error') {
-    rr(ctx, 20, 186, 440, 56, 12); ctx.fillStyle = 'rgba(255,59,79,.92)'; ctx.fill();
+    rr(ctx, W / 2 - 220, 186, 440, 56, 12); ctx.fillStyle = 'rgba(255,59,79,.92)'; ctx.fill();
     ctx.font = '12px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('KHALID 3D MODEL UNAVAILABLE. SHOWING BASIC AVATAR', W / 2, 205);
     ctx.font = '10px ' + FONT; ctx.fillText(String(K3.error).slice(0, 62), W / 2, 226);
@@ -3102,6 +3173,7 @@ function drawScene(ctx, G, time, bg, hud) {
   var sx = 0, sy = 0; if (G.shake > 0) { sx = (Math.random() - 0.5) * G.shake; sy = (Math.random() - 0.5) * G.shake; }
   ctx.translate(sx, sy);
   var cam = G.cam || 0;
+  if (W > 480) { ctx.scale(LANDZ, LANDZ); ctx.translate(-(W / 2 - W / (2 * LANDZ)), -LANDY0); }          // landscape: slightly closer camera
   drawArena(ctx, bg, cam);
   ctx.save(); var zc = 1 + 0.03 * Math.abs(cam); ctx.translate(W / 2 - cam * W * 0.025, H / 2); ctx.scale(zc, zc); ctx.translate(-W / 2, -H / 2);          // dodge camera: the fighters follow the lean slightly
   ctx.save(); ctx.translate(STX, STY); ctx.scale(SS, SS);
@@ -3128,14 +3200,26 @@ function drawScene(ctx, G, time, bg, hud) {
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
   if (hud !== false) {                                              // the HUD keeps its 480-wide design and sits in the middle of a wider frame
-    var Wf = W; HUDX = (Wf - 480) / 2; W = 480; ctx.save(); ctx.translate(HUDX, 0);
-    try { drawHUD(ctx, G, time); } finally { ctx.restore(); W = Wf; HUDX = 0; }
+    var Wf = W, Hf = H;
+    if (Wf > 480) {                                                  // landscape: a bigger, wider HUD across the top (bars grow towards the middle)
+      var S = Math.max(1.25, Math.min(1.7, Hf / 560)), Wd = Math.min(Wf * 0.88, 1250) / S, tx = (Wf - Wd * S) / 2;
+      HUDS = S; HUDX = tx / S; W = Wd; H = Hf / S; ctx.save(); ctx.translate(tx, 0); ctx.scale(S, S);
+      try { drawHUD(ctx, G, time); } finally { ctx.restore(); W = Wf; H = Hf; HUDX = 0; HUDS = 1; }
+    } else {
+      HUDX = 0; W = 480; ctx.save();
+      try { drawHUD(ctx, G, time); } finally { ctx.restore(); W = Wf; HUDX = 0; }
+    }
   }
 }
 
 /* ======================================================================
    REACT UI
    ====================================================================== */
+function useLand() {                                              // true while the screen is landscape; follows rotation and resizing
+  var st = useState(isLandscape()), v = st[0], set = st[1];
+  useEffect(function () { var f = function () { set(isLandscape()); }; window.addEventListener('resize', f); window.addEventListener('orientationchange', f); return function () { window.removeEventListener('resize', f); window.removeEventListener('orientationchange', f); }; }, []);
+  return v;
+}
 function useSnap(tracker, ms) {
   var st = useState(tracker.snapshot()), snap = st[0], setSnap = st[1];
   useEffect(function () {
@@ -3568,6 +3652,28 @@ function SettingsScreen(props) {
     return h('label', { className: 'dsl', key: key }, h('span', null, label + ' ' + SETTINGS[key].toFixed(2) + 'x'),
       h('input', { type: 'range', min: 0.4, max: 2.5, step: 0.05, value: SETTINGS[key], onChange: function (e) { setS(key, parseFloat(e.target.value)); } }));
   };
+  var land = useLand();
+  if (land) {
+    var sl2 = function (label, key) {
+      return h('label', { className: 'dsl', key: key }, h('span', null, label), h('em', null, SETTINGS[key].toFixed(2) + 'x'),
+        h('input', { type: 'range', min: 0.4, max: 2.5, step: 0.05, value: SETTINGS[key], onChange: function (e) { setS(key, parseFloat(e.target.value)); } }));
+    };
+    var bt = function (ic, label, fn, cls) { return h('button', { className: 'btn' + (cls ? ' ' + cls : ''), 'data-hand': '1', onClick: fn }, h('span', { className: 'ic' }, h(Ico, { n: ic })), h('span', { className: 'lb' }, label), h('i', { className: 'sweep' })); };
+    return h('div', { className: 'setl' },
+      h(FgHero, null),
+      h('div', { className: 'setl-logo' }, h(FgLogo)),
+      h('div', { className: 'setl-title' }, h('h2', null, 'Settings'), h('p', null, 'Adjust game sensitivity and preferences')),
+      h('div', { className: 'setl-cards' },
+        h('div', { className: 'setl-panel' }, h('h3', null, h(Ico, { n: 'gear' }), 'Sensitivity'), sl2('Dodge sensitivity', 'dodge'), sl2('Punch sensitivity', 'punch'), sl2('Neutral dead zone', 'dead')),
+        h('div', { className: 'setl-panel' }, h('h3', null, h(Ico, { n: 'people' }), 'Player name ', h('small', null, '(shown to your opponent)')),
+          h('label', { className: 'fld' }, h('input', { type: 'text', value: cfg.name, maxLength: 14, placeholder: 'Player', autoCorrect: 'off', onChange: function (e) { setC({ name: e.target.value }); } })))),
+      h('div', { className: 'setl-btns' },
+        bt('play', 'MOVEMENT CHECK', props.onMovement), bt('glove', 'PUNCH TEST', props.onPunchTest),
+        bt('dumb', 'FIGHT SETUP', props.onFightCal), bt('cam', 'CAMERA: ' + (props.camPref === 'environment' ? 'REAR (TV)' : 'FRONT'), function () { props.onCamPref(props.camPref === 'environment' ? 'auto' : 'environment'); }),
+        bt('people', LANG.v === 'ar' ? 'LANGUAGE: ARABIC' : 'LANGUAGE: ENGLISH', props.onLang, 'wide'),
+        bt('play', 'HOW TO PLAY', props.onHow), bt('cam', 'CAMERA OFF', props.onCamOff)),
+      h('div', { className: 'setl-back' }, h(FgBtn, { cls: 'gold', icon: 'back', label: 'BACK', onClick: props.onBack })));
+  }
   return h('div', { className: 'screen fit' },
     h('h2', { className: 'title' }, 'Settings'),
     h('div', { className: 'card slim sliders' }, slider('Dodge sensitivity', 'dodge'), slider('Punch sensitivity', 'punch'), slider('Neutral dead zone', 'dead')),
@@ -3677,7 +3783,23 @@ function Calibration(props) {
     return function () { clearInterval(id); };
   }, [tracker]);
   var hint = fitHint(snap) || (snap.status === 'body' ? (snap.motion < CFG.stillMax ? 'Hold still…' : 'Hold still for a moment.') : 'Point the camera at your head and shoulders.');
-  var items = [['LEFT HAND', snap.visLW], ['RIGHT HAND', snap.visRW], ['SHOULDERS', snap.visLS && snap.visRS]];
+  var items = [['LEFT HAND', snap.visLW], ['RIGHT HAND', snap.visRW], ['SHOULDERS', snap.visLS && snap.visRS]], land = useLand();
+  if (land) {
+    var bodyOk = snap.status === 'body', handsOk = snap.visLW && snap.visRW, framed = snap.visNose && snap.visLS && snap.visRS && snap.swFrac <= CFG.closeFrac && snap.swFrac >= CFG.farFrac;
+    var det = function (label, on) { return h('div', { className: 'cal-det' + (on ? ' on' : ''), key: label }, h('i', null, on ? '✓' : ''), label); };
+    return h('div', { className: 'call' },
+      h('div', { className: 'cal-logo' }, h(FgLogo)),
+      h('div', { className: 'cal-title' }, h('h2', null, 'Calibration'), h('p', null, 'Set up your stance and show your hands')),
+      h('div', { className: 'cal-steps' }, h('span', { className: bodyOk ? 'on' : '' }, h(Ico, { n: 'cam' }), 'Camera'), h('span', { className: handsOk ? 'on' : '' }, h(Ico, { n: 'glove' }), '2 Hands'), h('span', { className: prog > 0 ? 'on' : '' }, h(Ico, { n: 'play' }), 'Hold still')),
+      h('div', { className: 'cal-panel cal-left' }, h('h3', null, 'Get in position'),
+        h('div', { className: 'tip' + (framed ? ' ok' : '') }, h('i', null, framed ? '✓' : '•'), 'Position your upper body in the frame'),
+        h('div', { className: 'tip' + (snap.visLS && snap.visRS ? ' ok' : '') }, h('i', null, snap.visLS && snap.visRS ? '✓' : '•'), 'Keep your shoulders visible'),
+        h('div', { className: 'tip' }, h('i', null, '•'), 'Use good lighting')),
+      h('div', { className: 'cal-mid' }, h(Preview, { tracker: tracker, fixed: true }), h('span', { className: 'pill' }, h('b', null), 'CAMERA ON'), h('div', { className: 'bar' }, h('i', { style: { width: prog * 100 + '%' } }))),
+      h('div', { className: 'cal-panel cal-right' }, h('h3', null, 'Detecting'), det('Right Hand', snap.visRW), det('Left Hand', snap.visLW), det('Shoulders', snap.visLS && snap.visRS)),
+      h('div', { className: 'cal-nav' }, h(FgBtn, { cls: '', icon: 'back', label: 'BACK', onClick: props.onBack }), h('p', { 'aria-live': 'polite' }, hint || 'Hold still…'),
+        h('button', { className: 'btn gold', 'data-hand': '1', disabled: !bodyOk, onClick: function () { if (!tracker.state || tracker.state.status !== 'body') return; tracker.captureBaseline(); Sfx.ding(); props.onDone(); } }, h('span', { className: 'lb' }, 'NEXT'), h('i', { className: 'sweep' }))));
+  }
   return h('div', { className: 'screen fit calib' },
     h('h2', { className: 'title' }, 'CALIBRATION'),
     h('div', { className: 'pvfit' }, h(Preview, { tracker: tracker },
