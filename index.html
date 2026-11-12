@@ -166,6 +166,7 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .fsteps i { width: 26px; height: 6px; border-radius: 4px; background: rgba(255,255,255,.2); }
 .fsteps i.done { background: #4cf2a0; }
 .fsteps i.cur { background: #ffd21a; }
+.fskip .btn { font-size: 13px; min-height: 40px; }
 .fpips { display: flex; gap: 12px; justify-content: center; min-height: 26px; }
 .fpip { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); }
 .fpip.on { background: #ffd21a; border-color: #ffd21a; }
@@ -1332,6 +1333,7 @@ function mapCamError(e) {
 }
 
 function Tracker() {
+  this.facing = 'user'; try { if (localStorage.getItem('mb.tv') === '1') this.facing = 'environment'; } catch (e) { }          // TV mode: rear camera
   this.video = document.createElement('video');
   this.video.setAttribute('playsinline', '');
   this.video.muted = true; this.video.autoplay = true;
@@ -1401,7 +1403,7 @@ Tracker.prototype.startCamera = async function () {
   var stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 360 }, frameRate: { ideal: 30 } },
+      video: this.facing === 'environment' ? { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } } : { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 360 }, frameRate: { ideal: 30 } },
       audio: false
     });
   } catch (e) { throw mapCamError(e); }
@@ -1532,6 +1534,16 @@ Tracker.prototype._drawOverlay = function () {
   });
 };
 
+/* TV mode uses the rear camera (sharper and wider); switching restarts the stream. If the rear camera cannot start, fall back to the front one. */
+Tracker.prototype.setFacing = async function (f) {
+  this.facing = f; if (!this.stream) return f;
+  var wasRunning = this.running;
+  this.releaseCamera();
+  try { await this.startCamera(); }
+  catch (e) { if (f === 'environment') { this.facing = 'user'; await this.startCamera(); f = 'user'; } else throw e; }
+  if (wasRunning || this.landmarker) this.startTracking();
+  return f;
+};
 Tracker.prototype.releaseCamera = function () {
   this._stopLoop();
   if (this.stream) { this.stream.getTracks().forEach(function (t) { t.stop(); }); this.stream = null; }
@@ -3480,11 +3492,7 @@ function Calibration(props) {
     }, 100);
     return function () { clearInterval(id); };
   }, [tracker]);
-  var hint = snap.status === 'move-back' ? 'Move the phone back a little so your head and both shoulders fit.'
-    : snap.status === 'move-closer' ? 'Bring the phone a bit closer.'
-    : snap.status === 'hands-missing' ? 'Raise both fists into view, like a boxing guard.'
-    : snap.status === 'body' ? (snap.motion < CFG.stillMax ? 'Hold still…' : 'Hold still for a moment.')
-    : 'Point the front camera at your head and shoulders.';
+  var hint = fitHint(snap) || (snap.status === 'body' ? (snap.motion < CFG.stillMax ? 'Hold still…' : 'Hold still for a moment.') : 'Point the camera at your head and shoulders.');
   var items = [['LEFT HAND', snap.visLW], ['RIGHT HAND', snap.visRW], ['SHOULDERS', snap.visLS && snap.visRS]];
   return h('div', { className: 'screen fit calib' },
     h('h2', { className: 'title' }, 'CALIBRATION'),
@@ -3509,6 +3517,16 @@ var FCAL = {
   apply: function (eng) { var d = FCAL.data; if (eng) eng.handSens = { R: (d && d.R) || 1, L: (d && d.L) || 1 }; },
   sens: function (arr) { if (!arr || arr.length < 2) return 1; var a = arr.slice().sort(function (x, y) { return x - y; }), m = a[Math.floor(a.length / 2)]; return Math.round(clamp(CFG.punch.vOn / (0.4 * Math.max(0.3, m)), 0.75, 1.6) * 100) / 100; }
 };
+function fitHint(s) {                                                    // says exactly what the camera is missing and what to do about it
+  if (!s) return '';
+  if (!s.visNose || !(s.visRS && s.visLS)) return s.swFrac > CFG.closeFrac ? 'Step back a little: I need your head and both shoulders in view.' : 'I cannot see your head and both shoulders. Step back until they fit.';
+  if (s.swFrac > CFG.closeFrac) return 'Step back a little.';
+  if (s.swFrac < CFG.farFrac) return 'Step a little closer.';
+  if (!s.visRW && !s.visLW) return 'Raise both fists into view, like a boxing guard.';
+  if (!s.visRW) return 'Show your RIGHT hand: bring it into view.';
+  if (!s.visLW) return 'Show your LEFT hand: bring it into view.';
+  return '';
+}
 var FSTEPS = [
   { id: 'dist', title: 'GET IN POSITION', hint: 'Stand so your head and both shoulders fill the frame, fists up. Hold still.', need: 1 },
   { id: 'R', side: 'R', title: 'RIGHT JABS', hint: 'Throw 3 straight punches with your RIGHT hand, at the camera.', need: 3 },
@@ -3518,21 +3536,26 @@ var FSTEPS = [
 ];
 function FightCal(props) {
   var tracker = props.tracker, eng = tracker.engine, snap = useSnap(tracker, 100);
-  var is = useState(0), idx = is[0], setIdx = is[1], cs = useState(0), cnt = cs[0], setCnt = cs[1], rs = useState(null), res = rs[0], setRes = rs[1], ms = useState(''), msg = ms[0], setMsg = ms[1];
-  var R = useRef({ idx: 0, cnt: 0, hold: 0, t0: Date.now(), samples: { R: [], L: [] }, evts: [], sw: 0, relaxed: false, done: false }).current;
+  var is = useState(0), idx = is[0], setIdx = is[1], cs = useState(0), cnt = cs[0], setCnt = cs[1], rs = useState(null), res = rs[0], setRes = rs[1], ms = useState(''), msg = ms[0], setMsg = ms[1], vs = useState(false), rv = vs[0], setRv = vs[1];
+  var R = useRef({ idx: 0, cnt: 0, hold: 0, t0: Date.now(), samples: { R: [], L: [] }, cur: { R: [], L: [] }, evts: [], sw: 0, relaxed: false, done: false, review: false }).current;
+  var onReview = props.onReview || function () { };
   function finish() {
     if (R.done) return; R.done = true;
     var old = FCAL.data || {}, d = { v: 1, R: R.samples.R.length >= 2 ? FCAL.sens(R.samples.R) : (old.R || 1), L: R.samples.L.length >= 2 ? FCAL.sens(R.samples.L) : (old.L || 1), sw: R.sw || old.sw || 0, at: Date.now() };
-    FCAL.save(d); FCAL.apply(eng); setRes(d); Sfx.ding();
-    setTimeout(function () { props.onDone(); }, 3200);
+    FCAL.save(d); FCAL.apply(eng); setRes(d); onReview(true); Sfx.ding();
+    R.timer = setTimeout(function () { onReview(false); props.onDone(); }, 6000);
   }
-  function go(n) { R.idx = n; R.cnt = 0; R.hold = 0; R.t0 = Date.now(); R.evts = []; R.relaxed = false; setCnt(0); setMsg(''); eng.handSens = { R: 1, L: 1 }; if (n >= FSTEPS.length) { setIdx(n); finish(); } else { setIdx(n); Sfx.ding(); } }
+  function go(n) { R.idx = n; R.cnt = 0; R.hold = 0; R.t0 = Date.now(); R.evts = []; R.relaxed = false; R.review = false; R.cur = { R: [], L: [] }; setCnt(0); setMsg(''); setRv(false); onReview(false); eng.handSens = { R: 1, L: 1 }; tracker.drainPunches(); if (n >= FSTEPS.length) { setIdx(n); finish(); } else { setIdx(n); Sfx.ding(); } }
+  function complete() { R.review = true; setRv(true); onReview(true); Sfx.ding(); }                    // the step is satisfied: wait for the player to confirm (NEXT) or throw it away (REDO)
+  function next() { if (!R.review) return; R.samples.R = R.samples.R.concat(R.cur.R); R.samples.L = R.samples.L.concat(R.cur.L); go(R.idx + 1); }
+  function redo() { go(R.idx); }
   useEffect(function () {
     eng.handSens = { R: 1, L: 1 }; tracker.drainPunches();
     var id = setInterval(function () {
       if (R.done || R.idx >= FSTEPS.length) return;
       var st = FSTEPS[R.idx], s = tracker.state, q = tracker.drainPunches(), el = Date.now() - R.t0;
-      q.forEach(function (p) { if (p.pv > 0) R.samples[p.side].push(p.pv); });
+      if (R.review) return;
+      q.forEach(function (p) { if (p.pv > 0) R.cur[p.side].push(p.pv); });
       if (st.id === 'dist') {
         var ok = s.status === 'body' && s.motion < CFG.stillMax * 1.4; R.hold = ok ? R.hold + 0.1 : 0;
         setCnt(Math.min(1, R.hold / 1.2));
@@ -3540,8 +3563,8 @@ function FightCal(props) {
         return;
       }
       if (st.side) {
-        var n = q.filter(function (p) { return p.side === st.side; }).length; if (n) { R.cnt += n; setCnt(R.cnt); Sfx.ding(); }
-        if (R.cnt >= st.need) { go(R.idx + 1); return; }
+        var n = q.filter(function (p) { return p.side === st.side; }).length; if (n) { R.cnt = Math.min(st.need, R.cnt + n); setCnt(R.cnt); Sfx.ding(); }
+        if (R.cnt >= st.need) { complete(); return; }
         if (el > 8000 && !R.relaxed && R.cnt === 0) { R.relaxed = true; eng.handSens[st.side] = 1.5; setMsg('Made this hand more sensitive. Try again.'); }
         return;
       }
@@ -3549,32 +3572,36 @@ function FightCal(props) {
         q.forEach(function (p) { R.evts.push({ side: p.side, t: p.t }); }); if (R.evts.length > 3) R.evts.splice(0, R.evts.length - 3);
         var e = R.evts, hits = e.length === 3 && e[0].side === 'R' && e[1].side === 'R' && e[2].side === 'L' && e[2].t - e[0].t < 4500;
         setCnt(Math.min(3, R.evts.length));
-        if (hits) go(R.idx + 1);
+        if (hits) complete();
         return;
       }
       if (st.id === 'side') {
         var lean = s.dodge === 'L', m = q.filter(function (p) { return p.side === 'R'; }).length;
-        if (m && lean) { R.cnt += m; setCnt(R.cnt); Sfx.ding(); }
-        if (R.cnt >= st.need) go(R.idx + 1);
+        if (m && lean) { R.cnt = Math.min(st.need, R.cnt + m); setCnt(R.cnt); Sfx.ding(); }
+        if (R.cnt >= st.need) complete();
       }
     }, 100);
-    return function () { clearInterval(id); if (!R.done) FCAL.apply(eng); };
+    return function () { clearInterval(id); clearTimeout(R.timer); onReview(false); if (!R.done) FCAL.apply(eng); };
   }, [tracker]);
   var st = FSTEPS[Math.min(idx, FSTEPS.length - 1)], need = st.need;
   var pips = []; for (var i = 0; i < (st.id === 'dist' ? 0 : st.id === 'combo' ? 3 : need); i++) pips.push(h('i', { key: i, className: 'fpip' + (i < cnt ? ' on' : '') }));
-  var hint = st.id === 'dist' ? (snap.status === 'move-back' ? 'Move the phone back a little so your head and both shoulders fit.' : snap.status === 'move-closer' ? 'Bring the phone a bit closer.' : snap.status === 'body' ? (snap.motion < CFG.stillMax * 1.4 ? 'Hold still…' : 'Hold still for a moment.') : 'Point the camera at your head and shoulders.') : st.hint;
+  var hint = st.id === 'dist' ? (fitHint(snap) || (snap.status === 'body' ? (snap.motion < CFG.stillMax * 1.4 ? 'Hold still…' : 'Hold still for a moment.') : 'Point the camera at your head and shoulders.')) : st.hint;
+  var skipAll = function () { R.done = true; clearTimeout(R.timer); onReview(false); FCAL.apply(eng); props.onDone(); };
   if (res) return h('div', { className: 'screen fit calib' },
     h('h2', { className: 'title' }, 'READY'),
-    h('div', { className: 'card slim' }, h('p', { className: 'cmsg' }, 'Right hand tuned x' + res.R.toFixed(2) + ' · Left hand tuned x' + res.L.toFixed(2)), h('p', { className: 'sub', style: { fontSize: 12 } }, 'Saved on this phone. If you move the phone or the camera, run FIGHT SETUP again from Settings.')),
-    h('div', { className: 'spacer' }), h('div', { className: 'row' }, h('button', { className: 'btn gold grow', onClick: props.onDone }, 'START')));
+    h('div', { className: 'card slim' }, h('p', { className: 'cmsg' }, 'Right hand tuned x' + res.R.toFixed(2) + ' · Left hand tuned x' + res.L.toFixed(2)), h('p', { className: 'sub', style: { fontSize: 12 } }, 'Saved on this device. If the camera or its position changes, run FIGHT SETUP again from Settings.')),
+    h('div', { className: 'row' }, h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: function () { clearTimeout(R.timer); onReview(false); props.onDone(); } }, 'START')),
+    h('div', { className: 'spacer' }));
   return h('div', { className: 'screen fit calib' },
     h('h2', { className: 'title' }, 'FIGHT SETUP'),
     h('div', { className: 'fsteps' }, FSTEPS.map(function (x, k) { return h('i', { key: x.id, className: k < idx ? 'done' : k === idx ? 'cur' : '' }); })),
     h('div', { className: 'pvfit' }, h(Preview, { tracker: tracker })),
-    h('p', { className: 'cmsg', 'aria-live': 'polite' }, h('b', null, st.title), h('br'), hint),
+    h('p', { className: 'cmsg', 'aria-live': 'polite' }, h('b', null, st.title), h('br'), rv ? 'Did that go the way you wanted? NEXT keeps it. REDO throws it away and you try again.' : hint),
     msg ? h('p', { className: 'sub', style: { fontSize: 12, textAlign: 'center' } }, msg) : null,
-    st.id === 'dist' ? h('div', { className: 'prog' }, h('i', { style: { width: cnt * 100 + '%' } })) : h('div', { className: 'fpips' }, pips),
-    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', onClick: function () { go(idx + 1); } }, 'SKIP STEP'), h('button', { className: 'btn ghost grow', onClick: function () { R.done = true; FCAL.apply(eng); props.onDone(); } }, 'SKIP ALL')));
+    rv ? h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: redo }, 'REDO'), h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: next }, 'NEXT'))
+       : (st.id === 'dist' ? h('div', { className: 'prog' }, h('i', { style: { width: cnt * 100 + '%' } })) : h('div', { className: 'fpips' }, pips)),
+    h('div', { className: 'spacer' }),
+    h('div', { className: 'row fskip' }, h('button', { className: 'btn ghost grow', onClick: redo }, 'RESTART STEP'), h('button', { className: 'btn ghost grow', onClick: function () { go(idx + 1); } }, 'SKIP STEP'), h('button', { className: 'btn ghost grow', onClick: skipAll }, 'SKIP ALL')));
 }
 
 var STEPS = [
@@ -3913,13 +3940,18 @@ function App() {
   var s9 = useState(loadNetCfg), cfg = s9[0], setCfg = s9[1];
   var s10 = useState(null), mpRes = s10[0], setMpRes = s10[1];
   var s11 = useState(function () { try { return localStorage.getItem('mb.tv') === '1'; } catch (e) { return false; } }), tv = s11[0], setTv = s11[1];
-  var s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
+  var s14 = useState(false), fcReview = s14[0], setFcReview = s14[1], forceFc = useRef(false), s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
   useEffect(function () {                                                      // follow rotation / resizing (landscape for a TV)
     var f = function () { setVp(function (n) { return n + 1; }); };
     window.addEventListener('resize', f); window.addEventListener('orientationchange', f);
     return function () { window.removeEventListener('resize', f); window.removeEventListener('orientationchange', f); };
   }, []);
-  function toggleTv() { var v = !tv; setTv(v); try { localStorage.setItem('mb.tv', v ? '1' : '0'); } catch (e) { } }
+  function toggleTv() {
+    var v = !tv; setTv(v); try { localStorage.setItem('mb.tv', v ? '1' : '0'); } catch (e) { }
+    if (camOn && mode === 'camera') {                                          // TV mode uses the rear camera; switching back uses the front one. The new view has to be calibrated again.
+      tracker.setFacing(v ? 'environment' : 'user').then(function () { forceFc.current = true; setCalibrated(false); setScreen('calibration'); }, function () { camOff(); });
+    } else tracker.facing = v ? 'environment' : 'user';
+  }
   var inviteRef = useRef(null); if (inviteRef.current === null) inviteRef.current = inviteCode();         // a friend's invite link: ?room=ABC234
   var netRef = useRef(null); if (!netRef.current) netRef.current = makeNet(cfg);
   var net = netRef.current;
@@ -3952,15 +3984,15 @@ function App() {
   function camOff() { netRef.current.close(); tracker.releaseCamera(); setCamOn(false); setCalibrated(false); setScreen('permission'); }
   function play(m) { if (m) setGmode(m); setRound(function (r) { return r + 1; }); setScreen('match'); }
   function applyCfg(c) { saveNetCfg(c); setCfg(c); netRef.current.close(); netRef.current = makeNet(c); }
-  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && screen !== 'fightcal' && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
+  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && (screen !== 'fightcal' || fcReview) && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search));
   var body;
   if (screen === 'permission') body = h(Permission, {
     tracker: tracker, onBack: home, invite: inviteRef.current,
     onReady: function () { tracker.startTracking(); setMode('camera'); setCamOn(true); setCalibrated(false); setScreen('calibration'); },
     onDebug: function () { tracker.releaseCamera(); setCamOn(false); setCalibrated(false); dbg.current.attach(); setMode('debug'); play('training'); }
   });
-  else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); FCAL.load(); if (FCAL.data) { FCAL.apply(tracker.engine); setScreen(inviteRef.current ? 'room' : 'menu'); } else setScreen('fightcal'); }, onBack: camOff });
-  else if (screen === 'fightcal') body = h(FightCal, { tracker: tracker, onDone: function () { setScreen(inviteRef.current ? 'room' : 'menu'); } });
+  else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); FCAL.load(); if (FCAL.data && !forceFc.current) { FCAL.apply(tracker.engine); setScreen(inviteRef.current ? 'room' : 'menu'); } else { forceFc.current = false; setScreen('fightcal'); } }, onBack: camOff });
+  else if (screen === 'fightcal') body = h(FightCal, { tracker: tracker, onReview: setFcReview, onDone: function () { setScreen(inviteRef.current ? 'room' : 'menu'); } });
   else if (screen === 'menu') body = h(MainMenu, { tracker: tracker, camOn: camOn, k3: k3, tv: tv, onTv: toggleTv, onOnline: function () { setScreen('online'); }, onTraining: function () { play('training'); }, onSettings: function () { setScreen('settings'); } });
   else if (screen === 'online') body = h(OnlineMenu, { key: 'o' + cfg.url + cfg.kind, net: net, onPrivate: function () { setScreen('room'); }, onBack: function () { netRef.current.close(); setScreen('menu'); } });
   else if (screen === 'room') body = h(PrivateRoom, { key: 'r' + cfg.url + cfg.kind, net: net, autoJoin: inviteRef.current, onVsAi: inviteRef.current ? null : function () { netRef.current.close(); play('game'); }, onBack: function () { if (inviteRef.current) { inviteRef.current = ''; netRef.current.close(); setScreen('menu'); } else setScreen('online'); } });
