@@ -1103,6 +1103,12 @@ var AR = {
   'Boxing training with Khalid': 'تدريب بوكسينغ مع خالد', 'Online boxing match': 'مباراة بوكسينغ أونلاين',
   'In a match, turns last five seconds: ATTACK (you punch) and DEFEND (the opponent attacks; a successful dodge gives you one counter punch).': 'في المباراة، كل دور خمس ثواني: هجوم (أنت تضرب) ودفاع (الخصم يهاجم؛ والمراوغة الناجحة تعطيك لكمة رد).'
 };
+Object.assign(AR, {
+  'ARCADE': 'أركيد', 'SCORE': 'النقاط', 'PUNCHES': 'اللكمات', 'ROUND': 'الجولة', 'COMPLETE': 'اكتملت', 'GET READY': 'استعد', 'DODGE THE PUNCHES': 'تفادَ الضربات',
+  'ATTACK!': 'هجوم!', 'PUNCH FAST!': 'الكم بسرعة!', 'DODGE RIGHT': 'تفادَ يمينًا', 'DODGE LEFT': 'تفادَ يسارًا', 'DUCK': 'انحنِ', 'SIDESTEP': 'تحرك جانبًا',
+  'DODGED': 'تفاديت', 'PERFECT!': 'مثالي!', 'KNOCKDOWN!': 'إسقاط!', 'GAME OVER': 'انتهت اللعبة', 'FINAL SCORE': 'النتيجة النهائية', 'NEW BEST!': 'رقم قياسي جديد!',
+  'Final score': 'النتيجة النهائية', 'Personal best': 'أفضل نتيجة لك', 'Highest round': 'أعلى جولة', 'Punches landed': 'لكمات مسجلة', 'Perfect dodges': 'تفادي مثالي', 'Dodges': 'التفادي', 'Hits taken': 'ضربات تلقيتها'
+});
 function tr(s) {
   if (LANG.v !== 'ar' || typeof s !== 'string' || !s) return s;
   var r = AR[s];
@@ -1990,18 +1996,22 @@ var KRig = (function () {
     var duck = cl(o.duck || 0, 0, 1), idle = Math.sin((o.time || 0) * 1.9) * 0.012;
     var leanW = lean;
     rig.hips[0] += RIGHT[0] * (o.x || 0) * 0.25;                    // small lateral shift of the whole body
-    rig.hips[1] -= duck * 0.2 + cl(o.dip || 0, 0, 1) * 0.07;
+    var fall = cl(o.fall || 0, 0, 1);
+    rig.hips[1] -= duck * 0.2 + cl(o.dip || 0, 0, 1) * 0.07 + fall * 0.40; rig.hips[2] -= fall * 0.42;
     rig.hips[2] += cl(o.lunge || 0, 0, 1) * 0.16;                  // a punch steps the whole body a little toward the opponent
     rig.fk(0);
     var s;
     for (s = 0; s < 3; s++) {
       var tired = cl(o.tired || 0, 0, 1), heave = tired * Math.sin((o.time || 0) * 5.5) * 0.02;
-      var rz = leanW / 3 + (s === 2 ? roll : 0) * 1.0, rx = (duck * 0.55 + tired * 0.16 + cl(o.dip || 0, 0, 1) * 0.3) / 3 + idle / 3 + heave, ry = (o.yaw || 0) / 3;
+      var rz = leanW / 3 + (s === 2 ? roll : 0) * 1.0, rx = (duck * 0.55 + tired * 0.16 + cl(o.dip || 0, 0, 1) * 0.3) / 3 + idle / 3 + heave - fall * 0.45, ry = (o.yaw || 0) / 3;
       addWorldRot(rig, iSp[s], qmul(qmul(qaxis([0, 1, 0], ry), qaxis([0, 0, 1], rz)), qaxis([1, 0, 0], rx)));
       rig.fk(iSp[s]);
     }
     addWorldRot(rig, iNeck, qmul(qaxis([0, 0, 1], -leanW * 0.45 - roll * 0.5 + cl(o.head || 0, -0.6, 0.6) * 0.5 * mir), qaxis([1, 0, 0], -duck * 0.2 + cl(o.tired || 0, 0, 1) * 0.22)));   // tired: the head hangs a little
     rig.fk(iNeck);
+    if (fall > 0) {                                  // knocked down: the thighs swing forward and the shins fold back (a seated collapse)
+      ['Left', 'Right'].forEach(function (sd) { var iu = rig.idx[sd + 'UpLeg'], il = rig.idx[sd + 'Leg']; if (iu == null || il == null) return; addWorldRot(rig, iu, qaxis([1, 0, 0], -fall * 1.45)); rig.fk(iu); addWorldRot(rig, il, qaxis([1, 0, 0], fall * 1.6)); rig.fk(il); });
+    }
 
     // 3) arms: aim the upper arm and forearm along the tracked directions (depth from foreshortening)
     var sides = [['R', mir > 0 ? 'Right' : 'Left'], ['L', mir > 0 ? 'Left' : 'Right']], si;
@@ -2241,6 +2251,12 @@ function k3OptsOpp(G, time) {
   if (sbt >= 0 && a.atk) { var sk = a.side === 'right' ? 'L' : 'R'; S.boost[sk] = time - sbt; S.kind[sk] = a.atk.ptype || 'jab'; }
   punchBody(o, time, S);
   o.yaw = -o.yaw;                                                                   // its model right hand is on the screen's left
+  var fl = a.fall || 0;
+  if (fl > 0) {                                                                      // arcade knockdown / K.O.: the body drops, the legs fold and the arms go limp (procedural, there is no baked fall clip)
+    o.fall = fl; o.duck = 0; o.x = -(a.hurtDir || 1) * 0.3 * fl; o.roll = 0; o.head = 0.45 * fl; o.block = 0; o.yaw = 0; o.tired = fl;
+    ['R', 'L'].forEach(function (sd) { var gs = sd === 'R' ? 1 : -1; o.arms[sd] = { wx: 0.55 * gs, wy: 1.5, ex: 0.3 * gs, ey: 0.85, w: fl }; });
+  }
+  if (a.cmb) { var ck = Math.sin(a.cmb.t / a.cmb.dur * Math.PI); o.x += Math.sin(time * 34) * 0.32 * ck; o.roll += Math.sin(time * 29) * 0.18 * ck; o.duck = Math.max(o.duck, 0.18 * ck); }       // combo: rapid stagger
   // complete clip accents: the AI is not camera driven, so the imported jab/hook clips can play fully
   var ps = a.side === 'right' ? 'L' : 'R', kd = S.kind[ps], bt = time - S.boost[ps];
   if (bt >= 0 && bt < 0.45 && (kd === 'jab' || kd === 'cross' || kd === 'hook')) { var nm = kd === 'hook' ? 'hook' : (ps === 'L' ? 'jabL' : 'jabR'), ac2 = rig.acc[nm]; if (bt < ac2.dur) o.acc.push({ name: nm, t: bt, w: 0.7 * Math.sin(bt / ac2.dur * Math.PI) }); }
@@ -2319,7 +2335,8 @@ var STAM = { regen: 12, delay: 0.6, dodge: 5, block: 3, low: 25, trainRegen: 45,
 /* mode: 'game' = real match (health and stamina, K.O. ends it) or 'training' (the opponent never attacks, nobody can lose, no end). */
 function createGame(mode) {
   return {
-    mode: mode === 'game' ? 'game' : 'training',
+    mode: mode === 'game' ? 'game' : mode === 'arcade' ? 'arcade' : 'training',
+    arc: mode === 'arcade' ? arcNew() : null,
     phase: 'fight', cd: 0, cdIdx: 3, t: 0, time: 0,            // the clock counts UP; only a K.O. in a real match ends the session
     pPrev: 100, aPrev: 100, pHitT: 9, aHitT: 9,
     pHP: 100, aHP: 100, pShow: 100, aShow: 100, score: 0, combo: 0, comboT: 0,
@@ -2385,6 +2402,7 @@ function playerPunchLands(G, side, type, fx) {
   checkKO(G, fx);
 }
 function aiStrikeLands(G, fx) {
+  if (G.arc) { arcStrike(G, fx); return; }
   var p = G.p, a = G.a, z = a.atk, px = 240 + p.x, pt = PUNCH[(z && z.ptype) || 'jab'], dmg = pt.dmg * (G.aSt < STAM.low ? 0.6 : 1);
   var hit = z ? zoneHits(z, playerBox(p)) : true;
   if (!hit) {
@@ -2412,6 +2430,7 @@ function updateAI(G, dt, fx) {
   var a = G.a, train = G.mode === 'training'; a.stateT += dt; a.guardCool = Math.max(0, a.guardCool - dt); a.reactCool = Math.max(0, a.reactCool - dt);
   switch (a.state) {
     case 'idle':
+      if (G.arc) break;                                  // arcade: the state machine launches every punch
       a.timer -= dt;
       if (a.timer <= 0) {
         if (train) {                                     // training: the opponent never attacks, it only shows defensive habits
@@ -2447,8 +2466,133 @@ function updateAI(G, dt, fx) {
   }
 }
 function summarize(G) {
+  if (G.arc) { var A = G.arc; return { mode: 'arcade', outcome: 'over', ko: false, score: A.score, punches: A.punches, round: A.round, best: A.best, newBest: A.newBest, dodges: A.dodged, perfect: A.perfect, taken: A.hits, time: Math.round(G.time), hits: G.hits, exec: G.exec, swings: G.swings, rejected: G.rejected, moves: G.moves, blocks: 0, phys: G.phys, pHP: G.pHP, aHP: 100, timeLeft: 0 }; }
   var r = G.result || { outcome: 'draw', ko: false };
   return { mode: G.mode, outcome: r.outcome, ko: r.ko, score: Math.round(G.score), hits: G.hits, swings: G.swings, exec: G.exec, phys: G.phys, rejected: G.rejected, moves: G.moves, dodges: G.dodges, blocks: G.blocks, taken: G.taken, time: Math.round(G.time), timeLeft: 0, pHP: G.pHP, aHP: G.aHP };
+}
+
+/* ======================================================================
+   ARCADE MODE: an endless, score-based dodge-and-attack challenge.
+   Each round: PHASE 1 the opponent throws 7 punches, each announced by a danger circle and a ring that shrinks onto it (the ring closes exactly when the glove lands);
+   PHASE 2 a 7-second ATTACK where every real punch scores. Only the player has health (each missed dodge costs 20%). The opponent is a scoring target.
+   There are no baked KO / combo / fall clips in the project, so those reactions are procedural poses on the existing opponent rig (see k3OptsOpp / rig pose "fall").
+   ====================================================================== */
+var ARC = { N: 7, ATK: 7, HIT: 20 };
+/* Danger circles, in figure space. The circle IS the hit area: a hit lands when the player's body box touches it. */
+ARC.ZONES = {
+  L: { cx: 150, cy: 560, r: 140, label: 'DODGE RIGHT', ptype: 'cross', type: 'straight' },       // covers the centre and the left: step right
+  R: { cx: 330, cy: 560, r: 140, label: 'DODGE LEFT',  ptype: 'cross', type: 'straight' },       // covers the centre and the right: step left
+  H: { cx: 240, cy: 415, r: 95,  label: 'DUCK',        ptype: 'hook',  type: 'hook' },           // head height: only ducking clears it
+  B: { cx: 240, cy: 650, r: 62,  label: 'SIDESTEP',    ptype: 'upper', type: 'body' }            // low and narrow: step to either side
+};
+function arcWarnT(r) { return Math.max(0.6, 1.35 - (r - 1) * 0.08); }        // the warning gets shorter every round
+function arcGap(r) { return Math.max(0.5, 0.95 - (r - 1) * 0.05); }
+function arcSeq(r) {
+  var pool = r < 2 ? ['L', 'R', 'H'] : ['L', 'R', 'H', 'B'], out = [], prev = '', k, c, g;
+  for (k = 0; k < ARC.N; k++) { g = 0; do { c = pool[Math.floor(Math.random() * pool.length)]; g++; } while (c === prev && g < 12); out.push(c); prev = c; }
+  return out;
+}
+function arcBest() { try { return parseInt(localStorage.getItem('mb.best') || '0', 10) || 0; } catch (e) { return 0; } }
+function arcNew() {
+  return { round: 1, ph: 'intro', pt: 0, i: 0, seq: arcSeq(1), score: 0, shown: 0, pulse: 0, punches: 0, rScore: 0, rPunches: 0, atkT: 0, streak: 0, lastPT: -9, last: { R: -9, L: -9 },
+           wait: 0.5, busy: false, resolved: false, wt: 0, wDur: 1, lastIn: -9, ticks: 0, dodged: 0, perfect: 0, hits: 0, koDone: false, downCool: 0, best: arcBest(), newBest: false };
+}
+function arcGo(A, ph) { A.ph = ph; A.pt = 0; }
+function circleHits(z, b) { var nx = clamp(z.cx, b.x0, b.x1), ny = clamp(z.cy, b.y0, b.y1), dx = z.cx - nx, dy = z.cy - ny; return dx * dx + dy * dy <= z.r * z.r; }
+function arcSaveBest(A) { if (A.score > A.best) { A.newBest = true; try { localStorage.setItem('mb.best', String(A.score)); } catch (e) { } } }
+
+/* the opponent's reaction timelines: a.fall (0 standing .. 1 down) for a knockdown / K.O., a.cmb for a combo stagger */
+function arcOpp(G, dt) {
+  var a = G.a, d = a.dn, u;
+  if (d) {
+    d.t += dt; u = d.t < 0.4 ? d.t / 0.4 : d.t < d.dur - 0.8 ? 1 : Math.max(0, (d.dur - d.t) / 0.8);
+    a.fall = u * u * (3 - 2 * u);
+    if (d.t >= d.dur) { a.dn = null; a.fall = 0; a.state = 'idle'; a.stateT = 0; }
+  } else a.fall = 0;
+  if (a.cmb) { a.cmb.t += dt; if (a.cmb.t >= a.cmb.dur) a.cmb = null; }
+}
+function arcLaunch(G, fx) {
+  var A = G.arc, a = G.a, key = A.seq[A.i], Z = ARC.ZONES[key], wT = arcWarnT(A.round);
+  a.atk = { type: Z.type, ptype: Z.ptype, label: Z.label, zone: key, zx: Z.cx, cx: Z.cx, cy: Z.cy, r: Z.r, gy: Z.cy, hw: Z.r, y0: Z.cy - Z.r, y1: Z.cy + Z.r };
+  a.side = A.i % 2 ? 'left' : 'right';
+  setA(G, 'windup', wT); a.locked = true;                                     // the circle never moves: what you see is what lands
+  A.busy = true; A.resolved = false; A.wt = 0; A.wDur = wT + 0.11; A.lastIn = -9; A.ticks = 0; fx.warn();       // 0.11 s after the strike starts is the impact frame (see updateAI)
+}
+/* called from updateAI at the impact frame */
+function arcStrike(G, fx) {
+  var A = G.arc, a = G.a, p = G.p, z = a.atk, px = 240 + p.x, hit = z ? circleHits(z, playerBox(p)) : true;
+  A.resolved = true; A.i++; a.dodgedRecover = false;
+  if (!hit) {
+    var perfect = A.lastIn > 0 && A.lastIn >= A.wDur - 0.62, pts = perfect ? 50 : 25;      // perfect: you were still in the circle in the last half second and cleared it just in time
+    A.score += pts; A.dodged++; G.dodges++; if (perfect) A.perfect++; A.pulse = 1;
+    addPopup(G, perfect ? tr('PERFECT!') + ' +50' : tr('DODGED') + ' +25', px, 420, perfect ? '#ffc42e' : '#3be8ff', perfect ? 44 : 38); fx.dodge();
+    if (perfect) burst(G, px, 470, '#ffc42e', 12, 240);
+  } else {
+    A.hits++; G.taken++; G.pHP = Math.max(0, G.pHP - ARC.HIT); G.p.hurt = 0.45; if (G.mixer) G.mixer.play('hit');
+    G.flash = 1; G.shake = 14; G.hitstop = 0.07; G.combo = 0; A.streak = 0; a.happy = 0.8;
+    fx.hurt(); addPopup(G, '-' + ARC.HIT + '%', px, 410, '#ff3b4f', 52); burst(G, px, 480, '#ff3b4f', 16, 280);
+    if (G.pHP <= 0) arcOver(G, fx);
+  }
+}
+function arcOver(G, fx) {
+  var A = G.arc; arcSaveBest(A); arcGo(A, 'over');
+  G.phase = 'ended'; G.endT = 0; G.endLabel = 'GAME OVER'; G.result = { outcome: 'over', ko: false }; G.shake = 20; G.hitstop = 0.15; fx.bell();
+  setA(G, 'idle', 1); G.a.atk = null;
+}
+function arcPunch(G, ev, fx) {
+  var A = G.arc, a = G.a, p = G.p, s = ev.side, type = PUNCH[ev.type] ? ev.type : 'jab', now = G.t, gx = 240 + (s === 'R' ? 1 : -1) * 30;
+  G.phys++;
+  if (now - A.last[s] < 0.16) { G.rejected++; return; }                      // the same hand again before it could recover: a shake, not a punch (0 points)
+  A.last[s] = now;
+  var power = type !== 'jab', pts = power ? 150 : 100;
+  A.streak = now - A.lastPT < 1.1 ? A.streak + 1 : 1; A.lastPT = now;
+  A.score += pts; A.rScore += pts; A.punches++; A.rPunches++; A.pulse = 1;
+  G.hits++; G.exec++; G.swings++; G.moves[type]++; G.lastMove = PUNCH[type].label; G.lastMoveT = now; G.combo = A.streak; G.comboT = 1.1;
+  p.q.push({ side: s, type: type, t: 0, resolved: true }); p.punch = p.q[p.q.length - 1]; G.mixer.play(s === 'R' ? 'jabR' : 'jabL');
+  fx.whoosh(); fx.punchHit(); G.shake = Math.max(G.shake, power ? 9 : 5);
+  burst(G, gx, 262, power ? '#ffc42e' : '#ff9f43', power ? 14 : 8, power ? 260 : 190);
+  addPopup(G, '+' + pts, gx + rand(-16, 16), 215, power ? '#ffc42e' : '#ffffff', power ? 46 : 38);
+  if (!a.dn) { a.hurt = 0.35; a.hurtDir = s === 'R' ? -1 : 1; a.hurtId++; }          // every valid punch: the existing hit reaction (hurt pose + imported "hit" accent)
+  if (!a.dn) {
+    if (A.rPunches >= 20 && !A.koDone) { A.koDone = true; a.dn = { kind: 'ko', t: 0, dur: 2.6 }; addPopup(G, 'K.O.!', 240, 300, '#ff3b4f', 64); fx.bell(); G.shake = 22; G.hitstop = 0.18; A.downCool = 3.5; }
+    else if (A.downCool <= 0 && ((power && A.streak >= 3) || A.streak >= 6)) { a.dn = { kind: 'down', t: 0, dur: 1.9 }; A.downCool = 3.5; addPopup(G, tr('KNOCKDOWN!'), 240, 300, '#ffc42e', 50); G.shake = 16; G.hitstop = 0.12; }
+    else if (A.streak >= 3 && A.streak % 3 === 0) { a.cmb = { t: 0, dur: 0.7 }; addPopup(G, 'COMBO x' + A.streak, 240, 300, '#ff9f43', 44); }
+  }
+}
+function arcStep(G, dt, punches, fx) {
+  var A = G.arc, a = G.a, p = G.p, i;
+  A.pulse = Math.max(0, A.pulse - dt * 3); A.downCool = Math.max(0, A.downCool - dt); A.pt += dt;
+  A.shown += (A.score - A.shown) * Math.min(1, dt * 9); if (Math.abs(A.score - A.shown) < 0.6) A.shown = A.score;
+  for (i = p.q.length - 1; i >= 0; i--) { p.q[i].t += dt; if (p.q[i].t >= 0.4) p.q.splice(i, 1); }
+  if (p.punch) { p.punch.t = p.punch.t || 0; if (p.q.indexOf(p.punch) < 0) { p.punch.t += dt; if (p.punch.t >= 0.4) p.punch = null; } }
+  arcOpp(G, dt);
+  if (A.ph === 'intro') {
+    if (A.pt < 0.02 && !A.sfxIntro) { A.sfxIntro = true; fx.ding(); }
+    if (A.pt > 1.9 && !a.dn) { A.i = 0; A.wait = 0.45; A.busy = false; A.sfxIntro = false; arcGo(A, 'dodge'); }
+  } else if (A.ph === 'dodge') {
+    if (A.busy) {
+      A.wt += dt;
+      if (a.state === 'windup') {
+        if (circleHits(a.atk, playerBox(p))) A.lastIn = A.wt;
+        var fr = A.wt / A.wDur;
+        if (A.ticks === 0 && fr >= 0.5) { fx.tick(); A.ticks = 1; } else if (A.ticks === 1 && fr >= 0.75) { fx.tick(); A.ticks = 2; } else if (A.ticks === 2 && fr >= 0.9) { fx.tick(); A.ticks = 3; }
+      }
+      if (A.resolved && a.state === 'idle') { A.busy = false; A.wait = arcGap(A.round); }
+    } else if (a.state === 'idle') {
+      A.wait -= dt;
+      if (A.wait <= 0) {
+        if (A.i >= ARC.N) { arcGo(A, 'attack'); A.atkT = 0; a.atk = null; fx.bell(); G.shake = Math.max(G.shake, 8); }
+        else arcLaunch(G, fx);
+      }
+    }
+    // the player's punches do nothing in the dodge phase (and the existing arm tracking still follows the body)
+  } else if (A.ph === 'attack') {
+    A.atkT += dt;
+    for (i = 0; i < punches.length; i++) arcPunch(G, punches[i], fx);
+    if (A.atkT >= ARC.ATK) { arcSaveBest(A); arcGo(A, 'roundEnd'); fx.bell(); }
+  } else if (A.ph === 'roundEnd') {
+    if (A.pt > 2.5) { A.round++; A.seq = arcSeq(A.round); A.rScore = 0; A.rPunches = 0; A.koDone = false; A.streak = 0; arcGo(A, 'intro'); }
+  }
 }
 
 function stepGame(G, dt, input, fx) {
@@ -2515,6 +2659,7 @@ function stepGame(G, dt, input, fx) {
       if (p.punch) { p.punch.t = p.punch.t || 0; if (p.q.indexOf(p.punch) < 0) { p.punch.t += dt; if (p.punch.t >= 0.4) p.punch = null; } }
       return;
     }
+    if (G.arc) { updateAI(G, dt, fx); arcStep(G, dt, punches, fx); return; }       // arcade: its own state machine (dodge x7, attack 7 s, endless rounds)
     if (G.turn) {                                                  // the real five-second turn clock: ATTACK (you) then DEFEND (the opponent), forever
       var T = G.turn; T.age += dt; T.t -= dt;                      // exactly five seconds per turn, then it flips with no pause
       if (T.t <= 0) { T.who = T.who === 'attack' ? 'defend' : 'attack'; T.t += 5; T.age = 0; T.n++; if (T.who === 'defend' && a.state === 'idle') a.timer = Math.min(a.timer, 0.4); }
@@ -2837,7 +2982,7 @@ function aiGlovePos(G, side, time, cx, bob) {
     if (a.state === 'windup') { var k = easeOut(Math.min(1, a.stateT / 0.25)); return { x: lerp(gX, cx + sgn * 135, k), y: lerp(gY, 340, k), r: lerp(34, 40, k), glow: true }; }
     if (a.state === 'strike') {
       var e = easeOut(Math.min(1, a.stateT / 0.12)), z = a.atk || { zx: 240, type: 'straight' };
-      var tx = z.zx, ty = z.type === 'body' ? 590 : 470;
+      var tx = z.zx, ty = z.gy || (z.type === 'body' ? 590 : 470);
       var gp = { x: lerp(o3 ? gX : cx + sgn * 135, tx, e), y: lerp(o3 ? 335 : 340, ty, e), r: lerp(o3 ? 26 : 40, 96, e) };
       a.lastGlove = gp; return gp;
     }
@@ -2851,7 +2996,8 @@ function aiGlovePos(G, side, time, cx, bob) {
 function aiFront(a, side) { return a.side === side && (a.state === 'strike' || (a.state === 'recover' && a.stateT < 0.25 && a.lastGlove)); }
 
 function drawOpponent(ctx, G, time) {
-  var a = G.a, p = G.p;
+  var a = G.a, p = G.p, fl2 = a.fall || 0;
+  if (fl2 > 0) { ctx.save(); ctx.translate(240, 540); ctx.rotate(-(a.hurtDir || 1) * fl2 * 1.25); ctx.scale(1, 1 - 0.25 * fl2); ctx.translate(-240, -540 + fl2 * 20); }
   var calm = a.state === 'idle' || a.state === 'recover' || a.state === 'guard';
   var sway = Math.sin(time * 1.7) * (calm ? 14 : 4), bob = Math.sin(time * 3.4) * (calm ? 5 : 2);
   var hk = a.hurt > 0 ? a.hurt / 0.35 : 0, hx = a.hurtDir * hk * 22, hy = hk * 8;
@@ -2876,6 +3022,7 @@ function drawOpponent(ctx, G, time) {
     arm(ctx, cx + sgn * 72, 326 + bob, gp.x, gp.y, 26, '#e9a468');
     glove(ctx, gp.x, gp.y, gp.r, '#d4172c', '#ff6b7c', gp.glow);
   });
+  if (fl2 > 0) ctx.restore();
 }
 
 function arm2(ctx, sx, sy, ex, ey, gx, gy, w, col) {
@@ -2930,6 +3077,7 @@ function drawPlayer(ctx, G, time) {
 }
 
 function drawZone(ctx, G, time) {
+  if (G.arc) { drawArcWarn(ctx, G, time); return; }
   var a = G.a, z = a.atk;
   if (!z || !(a.state === 'windup' || (a.state === 'strike' && a.stateT < 0.2))) return;
   var pulse = 0.5 + 0.5 * Math.sin(time * 18), x0 = z.zx - z.hw, w = z.hw * 2, y1 = Math.min(z.y1, 700), h = y1 - z.y0;
@@ -2953,7 +3101,7 @@ function drawStrikeGlove(ctx, G, time) {
       for (var i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(gp.x + i * 24, gp.y - gp.r - 10); ctx.lineTo(gp.x + i * 24 * 1.3, gp.y - gp.r - 50 - Math.abs(i) * 6); ctx.stroke(); }
     }
   });
-  if (a.state === 'windup') {
+  if (a.state === 'windup' && !G.arc) {
     var gw = aiGlovePos(G, a.side, time, 240 + Math.sin(time * 1.7) * 4, 0), k = Math.min(1, a.stateT / Math.max(0.1, a.timer)), pulse = 0.5 + 0.5 * Math.sin(time * 22);
     ctx.strokeStyle = 'rgba(255,59,79,' + (0.5 + 0.5 * pulse) + ')'; ctx.lineWidth = 5;
     circ(ctx, gw.x, gw.y, lerp(96, 46, k)); ctx.stroke();
@@ -3122,16 +3270,87 @@ function drawDev(ctx, G) {
   ctx.restore();
 }
 var HUDX = 0;
+/* ---- ARCADE drawing ---- */
+function drawArcWarn(ctx, G, time) {                  // figure space: the exact danger circle, and the ring that shrinks onto it as the glove comes in
+  var A = G.arc, a = G.a, z = a.atk;
+  if (!A || A.ph !== 'dodge' || !z || !(a.state === 'windup' || (a.state === 'strike' && a.stateT < 0.2))) return;
+  var pu = 0.5 + 0.5 * Math.sin(time * 18), prog = clamp(A.wt / A.wDur, 0, 1), strike = a.state === 'strike', ringR = z.r * (1 + 1.5 * Math.pow(1 - prog, 1.3)), late = prog > 0.8 || strike;
+  ctx.save();
+  var gr = ctx.createRadialGradient(z.cx, z.cy, z.r * 0.15, z.cx, z.cy, z.r);
+  gr.addColorStop(0, 'rgba(255,59,79,' + (0.14 + 0.2 * prog + 0.08 * pu) + ')'); gr.addColorStop(1, 'rgba(255,59,79,' + (0.3 + 0.3 * prog + 0.1 * pu) + ')');
+  ctx.fillStyle = gr; circ(ctx, z.cx, z.cy, z.r); ctx.fill();
+  ctx.lineWidth = late ? 8 : 6; ctx.strokeStyle = late ? '#ffffff' : '#ff3b4f'; circ(ctx, z.cx, z.cy, z.r); ctx.stroke();
+  if (!strike) { ctx.lineWidth = 9; ctx.strokeStyle = 'rgba(255,222,110,' + (0.55 + 0.45 * prog) + ')'; circ(ctx, z.cx, z.cy, ringR); ctx.stroke(); }
+  if (strike) { ctx.fillStyle = 'rgba(255,255,255,' + (0.5 * (1 - a.stateT / 0.2)) + ')'; circ(ctx, z.cx, z.cy, z.r); ctx.fill(); }
+  var dir = z.zone === 'L' ? 1 : z.zone === 'R' ? -1 : 0;                                         // an arrow that points where to go
+  if (dir) { var ax = z.cx + dir * z.r * 0.1, ay = z.cy + 34; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(ax - dir * 26, ay - 12); ctx.lineTo(ax + dir * 8, ay - 12); ctx.lineTo(ax + dir * 8, ay - 24); ctx.lineTo(ax + dir * 36, ay); ctx.lineTo(ax + dir * 8, ay + 24); ctx.lineTo(ax + dir * 8, ay + 12); ctx.lineTo(ax - dir * 26, ay + 12); ctx.closePath(); ctx.fill(); }
+  else if (z.zone === 'H') { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(z.cx - 22, z.cy + 6); ctx.lineTo(z.cx + 22, z.cy + 6); ctx.lineTo(z.cx, z.cy + 38); ctx.closePath(); ctx.fill(); }
+  textOutlined(ctx, tr(z.label), z.cx, z.cy - (dir || z.zone === 'H' ? 14 : 0), z.zone === 'B' ? 20 : 26, '#ffffff', 0.97);
+  ctx.restore();
+}
+function drawArcTop(ctx, G, time) {                    // HUD: round badge in the middle, SCORE and PUNCHES in the upper right, phase information underneath
+  var A = G.arc, cx = W / 2, cy = 50, sc = 1 + 0.16 * A.pulse, i;
+  ctx.save(); hexPath(ctx, cx, cy, 39, 30);
+  var g = ctx.createLinearGradient(0, cy - 30, 0, cy + 30); g.addColorStop(0, '#2c2d34'); g.addColorStop(1, '#0b0b0f'); ctx.fillStyle = g; ctx.fill();
+  var sg = ctx.createLinearGradient(cx - 39, 0, cx + 39, 0); sg.addColorStop(0, '#9aa0ad'); sg.addColorStop(0.5, '#ffc42e'); sg.addColorStop(1, '#9aa0ad');
+  ctx.strokeStyle = sg; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'italic 700 9px ' + HFONT; ctx.fillText(tr('ROUND'), cx, cy - 12);
+  ctx.font = 'italic 900 24px ' + HFONT; ctx.fillText(String(A.round), cx, cy + 8);
+  ctx.restore();
+  // score panel (mirror of the health bar)
+  var px = W / 2 + 36, pw = W - 14 - px, py = 28, ph = 58;
+  ctx.save(); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + pw, py); ctx.lineTo(px + pw, py + ph); ctx.lineTo(px + 10, py + ph); ctx.closePath();
+  ctx.fillStyle = 'rgba(8,8,12,.82)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,196,46,.8)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffc42e'; ctx.font = 'italic 800 11px ' + HFONT; ctx.fillText(tr('SCORE'), px + 18, py + 14);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 ' + Math.round(30 * sc) + 'px ' + HFONT; ctx.fillText(String(Math.round(A.shown)), px + pw - 12, py + 20);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#9fe8ff'; ctx.font = 'italic 800 11px ' + HFONT; ctx.fillText(tr('PUNCHES'), px + 18, py + 44);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 20px ' + HFONT; ctx.fillText(String(A.punches), px + pw - 12, py + 44);
+  ctx.restore();
+  // phase strip
+  if (A.ph === 'dodge' || A.ph === 'intro') {
+    for (i = 0; i < ARC.N; i++) { var on = i < A.i; ctx.fillStyle = on ? '#ffc42e' : 'rgba(255,255,255,.28)'; circ(ctx, cx + (i - 3) * 18, 108, 5.5, ctx.fillStyle); }
+  } else if (A.ph === 'attack') {
+    var left = Math.max(0, ARC.ATK - A.atkT), bw = 180;
+    ctx.save(); rr(ctx, cx - bw / 2, 102, bw, 10, 5); ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fill();
+    rr(ctx, cx - bw / 2, 102, Math.max(6, bw * left / ARC.ATK), 10, 5); ctx.fillStyle = left < 2 ? '#ff3b4f' : '#ffc42e'; ctx.fill(); ctx.restore();
+    textOutlined(ctx, String(Math.ceil(left)), cx, 134, 30 + (left < 3 ? 6 * Math.abs(Math.sin(time * 8)) : 0), left < 3 ? '#ff6b6b' : '#ffffff');
+  }
+}
+function drawArcOverlay(ctx, G, time) {                 // big centred messages: ROUND n, ATTACK!, ROUND COMPLETE, and the combo counter
+  var A = G.arc, k, al, cy = HUDS > 1 ? H * 0.34 : 215;
+  if (A.ph === 'intro' && A.pt < 1.9) {
+    k = A.pt < 0.22 ? 2.2 - 1.2 * (A.pt / 0.22) : 1; al = A.pt < 0.1 ? A.pt / 0.1 : A.pt > 1.5 ? Math.max(0, 1 - (A.pt - 1.5) / 0.4) : 1;
+    ctx.save(); ctx.globalAlpha = clamp(al, 0, 1); textOutlined(ctx, tr('ROUND') + ' ' + A.round, W / 2, cy, 60 * k * (HUDS > 1 ? 0.8 : 1), '#ffc42e'); ctx.restore();
+    textOutlined(ctx, tr(A.round === 1 ? 'GET READY' : 'DODGE THE PUNCHES'), W / 2, cy + 52, 22, '#ffffff', clamp(al, 0, 1));
+  } else if (A.ph === 'attack' && A.pt < 1.1) {
+    k = A.pt < 0.18 ? 2.4 - 1.4 * (A.pt / 0.18) : 1 + 0.06 * Math.sin(A.pt * 22); al = A.pt > 0.8 ? Math.max(0, 1 - (A.pt - 0.8) / 0.3) : 1;
+    textOutlined(ctx, tr('ATTACK!'), W / 2, cy, 64 * k * (HUDS > 1 ? 0.8 : 1), '#ff3b4f', clamp(al, 0, 1));
+    textOutlined(ctx, tr('PUNCH FAST!'), W / 2, cy + 56, 22, '#ffffff', clamp(al, 0, 1));
+  } else if (A.ph === 'roundEnd') {
+    al = A.pt < 0.15 ? A.pt / 0.15 : A.pt > 2.2 ? Math.max(0, 1 - (A.pt - 2.2) / 0.3) : 1;
+    textOutlined(ctx, tr('ROUND') + ' ' + A.round + ' ' + tr('COMPLETE'), W / 2, cy - 10, 36, '#ffc42e', clamp(al, 0, 1));
+    textOutlined(ctx, '+' + A.rScore, W / 2, cy + 40, 46, '#ffffff', clamp(al, 0, 1));
+    textOutlined(ctx, A.rPunches + ' ' + tr('PUNCHES'), W / 2, cy + 82, 20, '#9fe8ff', clamp(al, 0, 1));
+  }
+  if (G.combo > 1 && A.ph === 'attack') { var cs = 1 + 0.12 * Math.sin(time * 14); textOutlined(ctx, 'COMBO x' + G.combo, W - 112, 118, 22 * cs, '#ffc42e'); }
+}
+
 function drawHUD(ctx, G, time) {
   BAR.x1 = W / 2 - 32;                                                         // bars always end next to the centre badge (208 at 480 wide)
   var hg = ctx.createLinearGradient(0, 0, 0, 120); hg.addColorStop(0, 'rgba(0,0,0,.55)'); hg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = hg; ctx.fillRect(-HUDX, 0, W + 2 * HUDX, 120);
   loadFace();
+  if (G.arc) { drawHealth(ctx, 'L', G.pHP, G.pShow); drawArcTop(ctx, G, time); }          // arcade: only the player has a health bar
+  else {
   drawHealth(ctx, 'L', G.pHP, G.pShow); drawHealth(ctx, 'R', G.aHP, G.aShow); drawCenterBadge(ctx, G);
   drawStam(ctx, 'L', G.pSt, G.pSt < STAM.low, time); drawStam(ctx, 'R', G.aSt, G.aSt < STAM.low, time);
+  }
   if (SETTINGS.dev) drawDev(ctx, G);
   drawAnnounce(ctx, G); drawTurnTimer(ctx, G);
-  if (G.phase === 'ended') { textOutlined(ctx, G.endLabel || 'K.O.!', W / 2, H / 2 - 60, 72 + Math.min(20, G.endT * 40), '#ffc42e', 1); textOutlined(ctx, G.result && G.result.outcome === 'win' ? 'YOU WIN' : G.result && G.result.outcome === 'draw' ? 'DRAW' : 'YOU LOSE', 240, H / 2 + 10, 34, '#fff', 1); }
+  if (G.phase === 'ended') { textOutlined(ctx, G.endLabel || 'K.O.!', W / 2, H / 2 - 60, (G.arc ? 54 : 72) + Math.min(20, G.endT * 40), '#ffc42e', 1); textOutlined(ctx, G.arc ? tr('FINAL SCORE') + ' ' + G.arc.score : G.result && G.result.outcome === 'win' ? 'YOU WIN' : G.result && G.result.outcome === 'draw' ? 'DRAW' : 'YOU LOSE', W / 2, H / 2 + 10, 34, '#fff', 1); }
+  if (G.arc) drawArcOverlay(ctx, G, time);
+  else {
   ctx.font = '12px ' + FONT; ctx.fillStyle = '#f3f5ff';
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillText('PUNCHES ' + G.hits + '/' + G.swings + '   DODGES ' + G.dodges + '   BLOCKS ' + G.blocks + '   HITS TAKEN ' + G.taken, W / 2, 114);
@@ -3140,6 +3359,7 @@ function drawHUD(ctx, G, time) {
     var pu = 0.5 + 0.5 * Math.sin(time * 20);
     rr(ctx, W / 2 - 190, 134, 380, 40, 14); ctx.fillStyle = 'rgba(255,59,79,' + (0.78 + 0.2 * pu) + ')'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
     ctx.font = '15px ' + FONT; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('INCOMING! ' + G.a.atk.label, W / 2, 155);
+  }
   }
   // 3D model status: never hide that the basic avatar is a fallback
   if (K3.status === 'loading') { ctx.font = '13px ' + FONT; ctx.fillStyle = '#ffc42e'; ctx.textAlign = 'center'; ctx.fillText('LOADING KHALID…', W / 2, H - 150); }
@@ -3202,6 +3422,10 @@ function drawScene(ctx, G, time, bg, hud) {
   if (G.flash > 0) {
     var vg = ctx.createRadialGradient(W / 2, H / 2, 160, W / 2, H / 2, Math.max(560, W * 0.6)); vg.addColorStop(0, 'rgba(255,59,79,0)'); vg.addColorStop(1, 'rgba(255,59,79,' + (0.7 * G.flash) + ')');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  }
+  if (G.arc && G.arc.ph === 'dodge' && G.a.state === 'windup') {      // arcade: pulsing red lights at the edges while a punch is coming
+    var wp = clamp(G.arc.wt / G.arc.wDur, 0, 1), wl = (0.12 + 0.3 * wp) * (0.55 + 0.45 * Math.sin(time * 16)), wv = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(560, W * 0.6)); wv.addColorStop(0, 'rgba(255,30,50,0)'); wv.addColorStop(1, 'rgba(255,30,50,' + wl + ')');
+    ctx.fillStyle = wv; ctx.fillRect(0, 0, W, H);
   }
   if (hud !== false) {                                              // the HUD keeps its 480-wide design and sits in the middle of a wider frame
     var Wf = W, Hf = H;
@@ -3566,7 +3790,8 @@ function MainMenu(props) {
     extra: h(FgChar, null)
   },
     props.k3 === 'error' ? h('p', { className: 'fgnote err' }, 'Khalid’s 3D model could not load: ' + K3.error + '. Training will use the basic avatar and say so on screen.') : null,
-    h(FgBtn, { hot: true, icon: 'play', label: 'PLAY ONLINE', onClick: props.onOnline, disabled: loading }),
+    h(FgBtn, { hot: true, icon: 'glove', label: 'ARCADE', onClick: props.onArcade, disabled: loading }),
+    h(FgBtn, { icon: 'play', label: 'PLAY ONLINE', onClick: props.onOnline, disabled: loading }),
     h(FgBtn, { icon: 'dumb', label: 'TRAINING', onClick: props.onTraining, disabled: loading }),
     h(FgBtn, { icon: 'gear', label: 'SETTINGS', onClick: props.onSettings }),
     props.camOn ? h('p', { className: 'fgnote' }, 'Raise your ', h('b', null, 'RIGHT HAND'), ' and hold the ring over a button') : null);
@@ -4101,7 +4326,20 @@ function Match(props) {
         btn('MENU', props.onQuit)) : h('div', { className: 'mhint' }, props.debug ? 'Press Q to finish' : 'Pause: raise both hands above your head for 1.5 s')));
 }
 
+function ArcadeResult(props) {
+  var r = props.result, best = Math.max(r.best || 0, r.score || 0), stat = function (l, v, cls) { return h('div', { className: 'stat ' + (cls || '') }, h('span', null, l), h('b', null, v)); };
+  return h('div', { className: 'screen' },
+    h('h2', { className: 'result-title lose' }, 'GAME OVER'),
+    r.newBest ? h('p', { className: 'sub center' }, 'NEW BEST!') : null,
+    h('div', { className: 'stats' },
+      stat('Final score', String(r.score), 'big'), stat('Personal best', String(best)), stat('Highest round', String(r.round)),
+      stat('Punches landed', String(r.punches)), stat('Dodges', String(r.dodges)), stat('Perfect dodges', String(r.perfect || 0)), stat('Hits taken', String(r.taken))),
+    props.camOn ? h(HandHint, { tracker: props.tracker, text: 'Move your RIGHT hand to steer the cursor. Hold it over a button for a second to select.' }) : null,
+    h('button', { className: 'btn gold', 'data-hand': '1', onClick: props.onAgain }, 'PLAY AGAIN'),
+    h('button', { className: 'btn ghost', 'data-hand': '1', onClick: props.onHome }, 'MAIN MENU'));
+}
 function Result(props) {
+  if (props.result && props.result.mode === 'arcade') return h(ArcadeResult, props);
   var r = props.result, acc = r.exec ? Math.round(r.hits / r.exec * 100) : 0, mm = Math.floor(r.time / 60), ss = r.time % 60, game = r.mode === 'game';
   var title = game ? (r.outcome === 'win' ? 'YOU WIN!' : r.outcome === 'lose' ? 'KNOCKED OUT' : 'MATCH OVER') : 'GOOD SESSION';
   var stat = function (l, v, cls) { return h('div', { className: 'stat ' + (cls || '') }, h('span', null, l), h('b', null, v)); };
@@ -4349,7 +4587,7 @@ function App() {
   });
   else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); FCAL.load(); if (FCAL.data && !forceFc.current) { FCAL.apply(tracker.engine); setScreen(inviteRef.current ? 'room' : 'menu'); } else { forceFc.current = false; setScreen('fightcal'); } }, onBack: camOff });
   else if (screen === 'fightcal') body = h(FightCal, { tracker: tracker, onReview: setFcReview, onDone: function () { setScreen(inviteRef.current ? 'room' : 'menu'); } });
-  else if (screen === 'menu') body = h(MainMenu, { tracker: tracker, camOn: camOn, k3: k3, tv: camPref === 'environment', onTv: toggleTv, onOnline: function () { setScreen('online'); }, onTraining: function () { play('training'); }, onSettings: function () { setScreen('settings'); } });
+  else if (screen === 'menu') body = h(MainMenu, { tracker: tracker, camOn: camOn, k3: k3, tv: camPref === 'environment', onTv: toggleTv, onOnline: function () { setScreen('online'); }, onTraining: function () { play('training'); }, onArcade: function () { play('arcade'); }, onSettings: function () { setScreen('settings'); } });
   else if (screen === 'online') body = h(OnlineMenu, { key: 'o' + cfg.url + cfg.kind, net: net, onPrivate: function () { setScreen('room'); }, onBack: function () { netRef.current.close(); setScreen('menu'); } });
   else if (screen === 'room') body = h(PrivateRoom, { key: 'r' + cfg.url + cfg.kind, net: net, autoJoin: inviteRef.current, onVsAi: inviteRef.current ? null : function () { netRef.current.close(); play('game'); }, onBack: function () { if (inviteRef.current) { inviteRef.current = ''; netRef.current.close(); setScreen('menu'); } else setScreen('online'); } });
   else if (screen === 'lobby') body = h(Lobby, { net: net, onLeave: function () { netRef.current.leaveRoom(); setScreen('room'); } });
@@ -4372,7 +4610,7 @@ function App() {
   return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null);
 }
 
-window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK };
+window.__MB = { UI: { App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
