@@ -430,6 +430,45 @@ html.fgm-on body { background: #050506; }
 .cal-nav { grid-area: nav; position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: center; gap: 1.6vw; }
 .cal-nav p { margin: 0; text-align: center; font: 600 clamp(13px, 3.2vh, 24px)/1.2 var(--body); color: #fff; } .cal-nav .btn:last-child { justify-self: end; }
 
+/* ===== calibration (landscape): purple studio ===== */
+.cal2 { position: fixed; inset: 0; z-index: 3; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; row-gap: 1.6vh; overflow: hidden; color: #fff; font-family: var(--body);
+  padding: max(12px, env(safe-area-inset-top)) max(26px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(26px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse at 50% 34%, #6b3b9c 0%, #4a2676 42%, #2a1349 100%); }
+.cal2 > * { position: relative; z-index: 2; }
+.cal2 .cal2-neon, .cal2 .cal2-light, .cal2 .cal2-floor { position: absolute; z-index: 1; pointer-events: none; display: block; }
+.cal2-neon.n1 { left: 3.5%; top: 24%; width: .5%; min-width: 4px; height: 38%; border-radius: 4px; background: #ffd2f6; box-shadow: 0 0 14px 4px rgba(255,120,230,.75), 0 0 46px 10px rgba(255,90,220,.35); }
+.cal2-neon.n2 { left: -4%; top: 11%; width: 22%; height: 1.2%; min-height: 4px; border-radius: 4px; background: #ffd2f6; transform: rotate(18deg); box-shadow: 0 0 14px 4px rgba(255,120,230,.75), 0 0 46px 10px rgba(255,90,220,.35); }
+.cal2-light.l1 { left: 12%; top: 0; width: 14%; height: 4%; background: rgba(255,225,250,.55); transform: perspective(200px) rotateX(-40deg); filter: blur(1px); box-shadow: 0 0 30px rgba(255,200,245,.5); }
+.cal2-light.l2 { right: 12%; top: 0; width: 14%; height: 4%; background: rgba(255,225,250,.55); transform: perspective(200px) rotateX(-40deg); filter: blur(1px); box-shadow: 0 0 30px rgba(255,200,245,.5); }
+.cal2-floor { left: 0; right: 0; bottom: 0; height: 26%; background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(190,120,255,.18) 60%, rgba(255,160,240,.16) 100%); border-top: 1px solid rgba(255,255,255,.07); }
+.cal2-banner { justify-self: center; display: flex; align-items: center; gap: 1.2vw; max-width: 82%; padding: .9vh 2.6vw; border: 2.5px solid #ffcb2e; border-radius: 22px; background: linear-gradient(180deg, rgba(48,34,88,.96), rgba(24,16,52,.96)); box-shadow: 0 0 22px rgba(255,203,46,.28), inset 0 0 18px rgba(160,120,255,.2); transform: skewX(-6deg); }
+.cal2-banner > * { transform: skewX(6deg); }
+.cal2-banner .gl { display: inline-flex; gap: .3em; color: #fff; } .cal2-banner .gl svg { width: clamp(22px, 7vh, 48px); height: clamp(22px, 7vh, 48px); }
+.cal2-banner b { font: italic 800 clamp(18px, 6.4vh, 52px)/1.1 var(--body); letter-spacing: .01em; text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.45); }
+.cal2-banner.ok { border-color: #5dff9a; box-shadow: 0 0 26px rgba(93,255,154,.45), inset 0 0 18px rgba(93,255,154,.18); } .cal2-banner.ok b { color: #b6ffd0; }
+.cal2-main { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.25fr); column-gap: 3.2vw; min-height: 0; }
+.cal2-char, .cal2-cam { min-height: 0; min-width: 0; position: relative; }
+.cal2-charbox { position: absolute; inset: 0; } .cal2-charbox canvas { width: 100%; height: 100%; display: block; }
+.cal2-load { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; font: 600 clamp(12px, 3vh, 20px)/1 var(--body); color: #e6d9ff; }
+.cal2-camwrap { position: absolute; inset: 0; display: grid; place-items: center; }
+.cal2 .preview { position: relative; flex: none; width: auto; border: 3px solid rgba(226,210,255,.92); border-radius: 26px; background: #120a26; box-shadow: 0 0 22px rgba(190,150,255,.65), inset 0 0 22px rgba(170,130,255,.25); overflow: hidden; aspect-ratio: auto; }
+.cal2 .preview video { object-fit: contain !important; }
+.cal2 .preview .br { position: absolute; width: 11%; height: 14%; border: 0 solid #e8dcff; pointer-events: none; z-index: 3; opacity: .95; }
+.cal2 .preview .br.tl { left: 4%; top: 5%; border-left-width: 5px; border-top-width: 5px; border-top-left-radius: 14px; } .cal2 .preview .br.tr { right: 4%; top: 5%; border-right-width: 5px; border-top-width: 5px; border-top-right-radius: 14px; }
+.cal2 .preview .br.bl { left: 4%; bottom: 5%; border-left-width: 5px; border-bottom-width: 5px; border-bottom-left-radius: 14px; } .cal2 .preview .br.bR { right: 4%; bottom: 5%; border-right-width: 5px; border-bottom-width: 5px; border-bottom-right-radius: 14px; }
+.cal2-foot { display: flex; justify-content: space-between; align-items: center; gap: 2vw; }
+.cal2-back, .cal2-start { display: inline-flex; align-items: center; justify-content: center; gap: .6em; min-height: clamp(44px, 11vh, 78px); border-radius: 999px; font: italic 900 clamp(16px, 5vh, 36px)/1 var(--body); text-transform: uppercase; cursor: pointer; transform: skewX(-6deg); }
+.cal2-back > *, .cal2-start > * { transform: skewX(6deg); }
+.cal2-back { padding: 0 3vw 0 1.8vw; color: #fff; border: 2px solid rgba(190,160,255,.8); background: linear-gradient(180deg, #3a2a68, #241749); box-shadow: 0 0 16px rgba(150,110,255,.3); }
+.cal2-back svg { width: 1.2em; height: 1.2em; }
+.cal2-start { padding: 0 3.2vw; min-width: min(46%, 520px); color: #2a1a00; border: 2px solid #fff2a0; background: linear-gradient(180deg, #ffe85a, #ffb300); box-shadow: 0 6px 0 #a86f00, 0 0 22px rgba(255,200,40,.4); }
+.cal2-start span { flex: 1; text-align: center; } .cal2-start svg { width: 1.1em; height: 1.1em; flex: none; }
+.cal2-start:disabled { opacity: .42; filter: saturate(.5); box-shadow: 0 6px 0 #6b5000; cursor: default; }
+.cal2-start.go { animation: cal2go 1.3s ease-in-out infinite; }
+@keyframes cal2go { 0%, 100% { box-shadow: 0 6px 0 #a86f00, 0 0 18px rgba(255,200,40,.4); } 50% { box-shadow: 0 6px 0 #a86f00, 0 0 40px rgba(255,220,80,.85); } }
+.cal2-back:hover, .cal2-back.hand-hover, .cal2-start.hand-hover { filter: brightness(1.15); outline: 3px solid #fff; }
+@media (max-height: 420px) { .cal2 { row-gap: 1vh; } .cal2-banner { padding: .5vh 2.2vw; } }
+
 /* fighter switch */
 .fgchar { grid-area: mid; align-self: end; justify-self: center; position: relative; z-index: 5; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .fgm .btn.fgarrow { min-height: 44px; min-width: 58px; padding: 0; }
@@ -1104,6 +1143,7 @@ var AR = {
   'In a match, turns last five seconds: ATTACK (you punch) and DEFEND (the opponent attacks; a successful dodge gives you one counter punch).': 'في المباراة، كل دور خمس ثواني: هجوم (أنت تضرب) ودفاع (الخصم يهاجم؛ والمراوغة الناجحة تعطيك لكمة رد).'
 };
 Object.assign(AR, {
+  'MOVE CLOSER': 'اقترب قليلًا', 'STEP BACK': 'ابتعد قليلًا', 'RAISE BOTH HANDS': 'ارفع يديك الاثنتين', 'KEEP YOUR SHOULDERS VISIBLE': 'خلّ كتفيك ظاهرين', 'HOLD STILL': 'ثبّت مكانك', 'PERFECT! READY TO PLAY': 'ممتاز! جاهز للعب', 'START GAME': 'ابدأ اللعبة', 'Loading character…': 'جاري تحميل الشخصية…', 'Character unavailable': 'الشخصية غير متاحة',
   'ARCADE': 'أركيد', 'SCORE': 'النقاط', 'PUNCHES': 'اللكمات', 'ROUND': 'الجولة', 'COMPLETE': 'اكتملت', 'GET READY': 'استعد', 'DODGE THE PUNCHES': 'تفادَ الضربات',
   'ATTACK!': 'هجوم!', 'PUNCH FAST!': 'الكم بسرعة!', 'DODGE RIGHT': 'تفادَ يمينًا', 'DODGE LEFT': 'تفادَ يسارًا', 'DUCK': 'انحنِ', 'SIDESTEP': 'تحرك جانبًا',
   'DODGED': 'تفاديت', 'PERFECT!': 'مثالي!', 'KNOCKDOWN!': 'إسقاط!', 'GAME OVER': 'انتهت اللعبة', 'FINAL SCORE': 'النتيجة النهائية', 'NEW BEST!': 'رقم قياسي جديد!',
@@ -1704,6 +1744,14 @@ Tracker.prototype._drawOverlay = function () {
   c.clearRect(0, 0, cv.width, cv.height);
   var L = this.engine.lm;
   if (!L || s.status === 'camera-ready' || s.status === 'idle') return;
+  if (this.overlayStyle === 'soft') {                              // calibration: thin, calm lines (shoulders and both arms), no letters
+    var sl = Math.max(2.5, s.vw / 190), pe = [[11, 12, 'rgba(255,255,255,.55)'], [12, 14, '#ffd21a'], [14, 16, '#ffd21a'], [11, 13, '#ffd21a'], [13, 15, '#ffd21a']], j;
+    c.lineCap = 'round'; c.lineWidth = sl; c.globalAlpha = 0.92; c.shadowColor = 'rgba(255,210,26,.55)'; c.shadowBlur = sl * 3;
+    for (j = 0; j < pe.length; j++) { var A = L[pe[j][0]], B = L[pe[j][1]]; if (A.v < 0.3 || B.v < 0.3) continue; c.strokeStyle = pe[j][2]; c.beginPath(); c.moveTo(A.X, A.Y); c.lineTo(B.X, B.Y); c.stroke(); }
+    c.shadowBlur = 0; c.fillStyle = '#ffffff';
+    [0, 11, 12, 13, 14, 15, 16].forEach(function (k) { var p = L[k]; if (p.v < 0.3) return; c.beginPath(); c.arc(p.X, p.Y, sl * 1.5, 0, 6.2832); c.fill(); });
+    c.globalAlpha = 1; return;
+  }
   var base = s.status === 'body' ? '#4cf2a0' : '#ffc42e';
   var lw = Math.max(3, s.vw / 150);
   c.lineCap = 'round'; c.lineWidth = lw;
@@ -3702,6 +3750,33 @@ K3.drawHero = function (ctx, w, hh, time) {
     return true;
   } catch (e) { return false; }
 };
+K3.drawLive = function (ctx, w, hh, time, G) {            // calibration: Khalid from the front, posed by the live tracker (same rig and solver as the match; mirror view: your right hand is on the screen's right)
+  try {
+    if (K3.status !== 'ready' || !K3.rig) return false;
+    var R = K3.renderer, cam = K3.camera;
+    if (!K3.heroOn) {
+      K3.heroOn = true; K3.heroW = 0; K3.heroH = 0;
+      if (!K3.heroLight) { K3.heroLight = new THREE.DirectionalLight(0xffe6c0, 1.5); K3.heroLight.position.set(1.4, 2.6, 3.2); }
+      K3.scene.add(K3.heroLight);
+    }
+    if (cam.view && cam.view.enabled) cam.clearViewOffset();
+    if (K3.heroW !== w || K3.heroH !== hh) { R.setSize(w, hh, false); K3.heroW = w; K3.heroH = hh; cam.aspect = w / hh; }
+    if (K3.opp) K3.opp.group.visible = false;
+    var o = k3Opts(G, time); o.mirror = true;
+    var rg = K3.rig.pose(o); k3Apply(K3.bones, rg); K3.syncChar(); K3.applyEm(rg);
+    if (!K3.heroHead) {
+      K3.scene.updateMatrixWorld(true);
+      var hb = null, v = new THREE.Vector3(); for (var i = 0; i < K3.bones.length; i++) if (/Head$/.test(K3.bones[i].name)) { hb = K3.bones[i]; break; }
+      K3.heroHead = hb ? (hb.getWorldPosition(v), v.y) : 1.7;
+      if (!(K3.heroHead > 0.8 && K3.heroHead < 3)) K3.heroHead = 1.7;
+    }
+    var hy = K3.heroHead + (K3.emActive() ? 0.03 : 0);
+    cam.fov = 32; cam.position.set(0.05, hy - 0.05, 3.7); cam.lookAt(0, hy - 0.55, 0); cam.updateProjectionMatrix();             // waist-up, with room above the head for raised hands
+    R.render(K3.scene, cam);
+    ctx.drawImage(K3.canvas, 0, 0, w, hh);
+    return true;
+  } catch (e) { return false; }
+};
 K3.endHero = function () {
   if (!K3.heroOn) return;
   K3.heroOn = false; K3.heroW = 0; K3.heroH = 0;
@@ -4001,7 +4076,84 @@ function Permission(props) {
     h(FgBtn, { cls: 'ghost sm debug', label: 'KEYBOARD MODE (NO CAMERA)', onClick: props.onDebug }));
 }
 
-function Calibration(props) {
+
+/* ===== CALIBRATION (landscape): purple studio, your 3D boxer mirroring you on the left, the real camera on the right, one instruction at a time ===== */
+function CalChar(props) {
+  var tracker = props.tracker, cv = useRef(null), ks = useK3();
+  useEffect(function () {
+    var canvas = cv.current, ctx = canvas.getContext('2d'), G = createGame('training'), raf = 0, last = performance.now(), dead = false;
+    G.phase = 'fight';
+    function frame(now) {
+      if (dead) return; raf = requestAnimationFrame(frame);
+      var dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+      var d = Math.min(window.devicePixelRatio || 1, 1.5), w = Math.max(2, Math.round(canvas.clientWidth * d)), hh = Math.max(2, Math.round(canvas.clientHeight * d));
+      if (canvas.width !== w || canvas.height !== hh) { canvas.width = w; canvas.height = hh; }
+      G.pHP = 100; G.aHP = 100; G.pShow = 100; G.aShow = 100; G.time = 60; G.a.timer = 1e9;
+      stepGame(G, dt, tracker, SilentFx); tracker.drainPunches();
+      ctx.clearRect(0, 0, w, hh); K3.drawLive(ctx, w, hh, now / 1000, G);
+    }
+    raf = requestAnimationFrame(frame);
+    return function () { dead = true; cancelAnimationFrame(raf); K3.endHero(); };
+  }, [tracker]);
+  return h('div', { className: 'cal2-charbox' }, h('canvas', { ref: cv, 'aria-label': 'Your boxer, copying your movements' }), ks !== 'ready' ? h('p', { className: 'cal2-load' }, ks === 'error' ? 'Character unavailable' : 'Loading character…') : null);
+}
+function CalCam(props) {
+  var tracker = props.tracker, wrap = useRef(null);
+  useEffect(function () {
+    var el = wrap.current;
+    function fit() {                                          // the picture keeps its own shape (never cropped); the box is computed from the real video size and the space available
+      var box = el.querySelector('.preview'); if (!box) return;
+      var cw = el.clientWidth, ch = el.clientHeight, s = tracker.state, ar = s.vw && s.vh ? s.vw / s.vh : 4 / 3, w = cw, hh = w / ar;
+      if (hh > ch) { hh = ch; w = hh * ar; }
+      box.style.width = Math.max(10, Math.floor(w)) + 'px'; box.style.height = Math.max(10, Math.floor(hh)) + 'px';
+    }
+    fit();
+    var ro = window.ResizeObserver ? new ResizeObserver(fit) : null; if (ro) ro.observe(el);
+    var un = tracker.subscribe(fit); window.addEventListener('resize', fit); window.addEventListener('orientationchange', fit);
+    var iv = setInterval(fit, 700);
+    return function () { un(); if (ro) ro.disconnect(); window.removeEventListener('resize', fit); window.removeEventListener('orientationchange', fit); clearInterval(iv); };
+  }, [tracker]);
+  return h('div', { className: 'cal2-camwrap', ref: wrap }, h(Preview, { tracker: tracker, fixed: true }, h('i', { className: 'br tl' }), h('i', { className: 'br tr' }), h('i', { className: 'br bl' }), h('i', { className: 'br bR' })));
+}
+function CalLand(props) {
+  var tracker = props.tracker, st = useState(''), shown = st[0], setShown = st[1], rd = useState(false), ready = rd[0], setReady = rd[1];
+  var R = useRef({ hold: 0, cand: '', candT: 0, shown: '', ready: false, lostT: 0 }).current;
+  useEffect(function () {
+    tracker.overlayStyle = 'soft';
+    var id = setInterval(function () {
+      var s = tracker.snapshot(), dt = 0.1, raw;
+      var framed = s.visNose && s.visLS && s.visRS, hands = s.visLW && s.visRW, still = s.motion < CFG.stillMax;
+      if (s.status === 'idle' || s.status === 'camera-lost' || s.status === 'camera-ready') raw = 'KEEP YOUR SHOULDERS VISIBLE';
+      else if (!framed) raw = s.swFrac > CFG.closeFrac ? 'STEP BACK' : 'KEEP YOUR SHOULDERS VISIBLE';
+      else if (s.swFrac > CFG.closeFrac) raw = 'STEP BACK';
+      else if (s.swFrac < CFG.farFrac) raw = 'MOVE CLOSER';
+      else if (!hands) raw = 'RAISE BOTH HANDS';
+      else if (!still) raw = 'HOLD STILL';
+      else raw = 'READY';
+      var good = raw === 'READY' || raw === 'HOLD STILL';                    // framed, both hands visible
+      if (raw === 'READY') R.hold += dt; else if (!good) R.hold = 0;
+      if (!R.ready && R.hold >= 1.0) { R.ready = true; R.lostT = 0; try { tracker.captureBaseline(); } catch (e) { } Sfx.ding(); setReady(true); }
+      if (R.ready) { R.lostT = good ? 0 : R.lostT + dt; if (R.lostT > 0.8) { R.ready = false; R.hold = 0; setReady(false); } }
+      var cand = R.ready ? 'PERFECT! READY TO PLAY' : raw === 'READY' ? 'HOLD STILL' : raw;
+      if (!R.shown) { R.shown = cand; R.cand = cand; R.candT = 0; setShown(cand); }
+      else if (cand !== R.shown) {                                            // a message only changes after it has been true for a moment, so it never flickers
+        if (cand !== R.cand) { R.cand = cand; R.candT = 0; } else R.candT += dt;
+        if (R.candT >= 0.6 || cand === 'PERFECT! READY TO PLAY') { R.shown = cand; R.candT = 0; setShown(cand); }
+      } else { R.cand = cand; R.candT = 0; }
+    }, 100);
+    return function () { clearInterval(id); tracker.overlayStyle = null; };
+  }, [tracker]);
+  function start() { if (!R.ready) return; try { tracker.captureBaseline(); } catch (e) { } Sfx.ding(); props.onDone(); }
+  return h('div', { className: 'cal2' },
+    h('i', { className: 'cal2-neon n1' }), h('i', { className: 'cal2-neon n2' }), h('i', { className: 'cal2-light l1' }), h('i', { className: 'cal2-light l2' }), h('i', { className: 'cal2-floor' }),
+    h('div', { className: 'cal2-banner' + (ready ? ' ok' : '') }, h('span', { className: 'gl' }, h(Ico, { n: 'glove' }), h(Ico, { n: 'glove' })), h('b', { 'aria-live': 'polite' }, shown || 'KEEP YOUR SHOULDERS VISIBLE')),
+    h('div', { className: 'cal2-main' }, h('div', { className: 'cal2-char' }, h(CalChar, { tracker: tracker })), h('div', { className: 'cal2-cam' }, h(CalCam, { tracker: tracker }))),
+    h('div', { className: 'cal2-foot' },
+      h('button', { className: 'cal2-back', 'data-hand': '1', onClick: props.onBack }, h(Ico, { n: 'back' }), h('span', null, 'BACK')),
+      h('button', { className: 'cal2-start' + (ready ? ' go' : ''), 'data-hand': '1', disabled: !ready, onClick: start }, h('span', null, 'START GAME'), h(Ico, { n: 'play' }))));
+}
+function Calibration(props) { var land = useLand(); return land ? h(CalLand, props) : h(CalibrationPortrait, props); }
+function CalibrationPortrait(props) {
   var tracker = props.tracker, snap = useSnap(tracker, 100);
   var st = useState(0), prog = st[0], setProg = st[1], hold = useRef(0);
   useEffect(function () {
