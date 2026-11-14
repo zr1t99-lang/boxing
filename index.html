@@ -189,6 +189,8 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .agsc b { display: block; font: italic 900 clamp(26px, 7vw, 38px)/1.1 var(--display); color: #ffd21a; text-shadow: 0 0 10px rgba(255,200,0,.5); font-variant-numeric: tabular-nums; }
 .agr { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; margin-top: 5px; border-radius: 10px; background: rgba(10,4,30,.6); border: 1px solid rgba(231,139,255,.3); color: #fff; font: italic 800 12px var(--display); text-transform: uppercase; }
 .agr b { color: #ffd21a; font-size: 18px; font-variant-numeric: tabular-nums; }
+.agb { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.agbtn.alt { background: rgba(255,210,26,.9); color: #2a1200; border-color: #ffd21a; }
 .agbtn { margin-top: 10px; min-width: 190px; border-radius: 40px; border: 2px solid #e78bff; background: rgba(40,10,90,.85); color: #fff; font: italic 900 24px var(--display); padding: 12px 28px; box-shadow: 0 0 20px rgba(214,90,255,.6); cursor: pointer; }
 .stage .ago { flex-direction: row; justify-content: flex-end; align-items: center; padding: 2% 3%; }
 .stage .agp { width: min(46vw, 520px); }
@@ -198,6 +200,8 @@ details.dev ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direct
 .cs2 h2 { margin: 0; font: italic 900 clamp(28px, 6vw, 48px)/1 var(--display); color: #fff; text-shadow: 0 0 18px #ff3df0, 0 4px 0 rgba(0,0,0,.4); letter-spacing: .02em; }
 .cs2row { display: flex; gap: clamp(8px, 2vw, 20px); justify-content: center; width: 100%; max-width: 900px; }
 .cs2card { flex: 1; max-width: 250px; min-width: 0; border-radius: 20px; border: 3px solid #e78bff; background: linear-gradient(180deg, rgba(90,30,150,.7), rgba(30,10,64,.9)); color: #fff; padding: 10px 6px 12px; cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 0 16px rgba(214,90,255,.4); }
+.cs2card.locked { opacity: .75; }
+.cs2card i.tag.prem { background: #c43cff; color: #fff; }
 .cs2card.on { border-color: #ffd21a; box-shadow: 0 0 24px rgba(255,210,26,.7); }
 .cs2card canvas { width: 100%; aspect-ratio: 3 / 4; border-radius: 12px; background: radial-gradient(circle at 50% 40%, #5a2a9a, #1a0838); display: block; }
 .cs2card b { font: italic 900 clamp(15px, 3.4vw, 22px) var(--display); letter-spacing: .04em; }
@@ -1170,35 +1174,39 @@ var AR = {
   'Boxing training with Khalid': 'تدريب بوكسينغ مع خالد', 'Online boxing match': 'مباراة بوكسينغ أونلاين',
   'In a match, turns last five seconds: ATTACK (you punch) and DEFEND (the opponent attacks; a successful dodge gives you one counter punch).': 'في المباراة، كل دور خمس ثواني: هجوم (أنت تضرب) ودفاع (الخصم يهاجم؛ والمراوغة الناجحة تعطيك لكمة رد).'
 };
-Object.assign(AR, {'SELECT CHARACTER':'اختر الشخصية','START GAME ▶':'ابدأ اللعبة ▶','GAME OVER':'انتهت اللعبة','Final Score':'النتيجة النهائية','♛ High Score':'♛ أعلى نتيجة','Successful Hits':'اللكمات الناجحة','Successful Dodges':'المراوغات الناجحة','Hits Received':'اللكمات المستلمة','Round Reached':'الجولة الواصلة','⟳ RESTART':'⟳ إعادة','HIGH SCORE':'أعلى نتيجة','FREE':'مجاني',
+Object.assign(AR, {'DIFFICULTY: EASY':'الصعوبة: سهل','DIFFICULTY: HARD':'الصعوبة: صعب','CELEBRATE':'احتفال','RESTART':'إعادة','PREMIUM':'مميز','LOCKED':'مقفل','Purchases are not available yet.':'الشراء غير متاح حالياً.','SHOW BOTH HANDS':'أظهر يديك الاثنتين','READY TO PLAY':'جاهز للعب','PUNCH FREELY':'الكم بحرية','SELECT CHARACTER':'اختر الشخصية','START GAME ▶':'ابدأ اللعبة ▶','GAME OVER':'انتهت اللعبة','Final Score':'النتيجة النهائية','♛ High Score':'♛ أعلى نتيجة','Successful Hits':'اللكمات الناجحة','Successful Dodges':'المراوغات الناجحة','Hits Received':'اللكمات المستلمة','Round Reached':'الجولة الواصلة','⟳ RESTART':'⟳ إعادة','HIGH SCORE':'أعلى نتيجة','FREE':'مجاني',
   'MOVE CLOSER': 'اقترب قليلًا', 'STEP BACK': 'ابتعد قليلًا', 'RAISE BOTH HANDS': 'ارفع يديك الاثنتين', 'KEEP YOUR SHOULDERS VISIBLE': 'خلّ كتفيك ظاهرين', 'HOLD STILL': 'ثبّت مكانك', 'PERFECT! READY TO PLAY': 'ممتاز! جاهز للعب', 'START GAME': 'ابدأ اللعبة', 'Loading character…': 'جاري تحميل الشخصية…', 'Character unavailable': 'الشخصية غير متاحة',
   'ARCADE': 'أركيد', 'SCORE': 'النقاط', 'PUNCHES': 'اللكمات', 'ROUND': 'الجولة', 'COMPLETE': 'اكتملت', 'GET READY': 'استعد', 'DODGE THE PUNCHES': 'تفادَ الضربات',
   'ATTACK!': 'هجوم!', 'PUNCH FAST!': 'الكم بسرعة!', 'DODGE RIGHT': 'تفادَ يمينًا', 'DODGE LEFT': 'تفادَ يسارًا', 'DUCK': 'انحنِ', 'SIDESTEP': 'تحرك جانبًا',
   'DODGED': 'تفاديت', 'PERFECT!': 'مثالي!', 'KNOCKDOWN!': 'إسقاط!', 'GAME OVER': 'انتهت اللعبة', 'FINAL SCORE': 'النتيجة النهائية', 'NEW BEST!': 'رقم قياسي جديد!',
   'Final score': 'النتيجة النهائية', 'Personal best': 'أفضل نتيجة لك', 'Highest round': 'أعلى جولة', 'Punches landed': 'لكمات مسجلة', 'Perfect dodges': 'تفادي مثالي', 'Dodges': 'التفادي', 'Hits taken': 'ضربات تلقيتها'
 });
+var DICTS = { ar: AR, zh: {'ARCADE':'街机模式','PLAY ONLINE':'在线对战','TRAINING':'训练','SETTINGS':'设置','Settings':'设置','BACK':'返回','SELECT CHARACTER':'选择角色','START GAME ▶':'开始游戏 ▶','START GAME':'开始游戏','FREE':'免费','PREMIUM':'高级','LOCKED':'未解锁','Purchases are not available yet.':'暂未开放购买。','FIGHTER':'拳手','MOVE CLOSER':'再靠近一点','STEP BACK':'再退后一点','RAISE BOTH HANDS':'举起双手','SHOW BOTH HANDS':'展示双手','KEEP YOUR SHOULDERS VISIBLE':'保持肩膀在画面内','HOLD STILL':'保持不动','PERFECT! READY TO PLAY':'完美!准备开始','READY TO PLAY':'准备开始','ENABLE CAMERA':'开启摄像头','TRY AGAIN':'重试','PLEASE WAIT…':'请稍候…','Your body is the controller.':'你的身体就是控制器。','Camera permission was denied.':'摄像头权限被拒绝。','Pose is read on this device. No video is recorded or uploaded.':'姿态仅在本设备读取,不会录制或上传视频。','FIGHT SETUP':'战斗准备','CALIBRATION':'校准','GET READY':'准备','FIGHT!':'开打!','ROUND':'回合','SCORE':'得分','HIGH SCORE':'最高分','PUNCHES':'出拳','COMPLETE':'完成','DODGE THE PUNCHES':'躲开拳头','ATTACK!':'进攻!','PUNCH FAST!':'快速出拳!','PUNCH FREELY':'自由出拳','DODGE RIGHT':'向右躲','DODGE LEFT':'向左躲','DUCK':'下蹲','SIDESTEP':'侧移','DODGED':'躲开了','PERFECT!':'完美!','KNOCKDOWN!':'击倒!','NEW BEST!':'新纪录!','GAME OVER':'游戏结束','Final Score':'最终得分','FINAL SCORE':'最终得分','♛ High Score':'♛ 最高分','Successful Hits':'成功命中','Successful Dodges':'成功闪避','Hits Received':'受到攻击','Round Reached':'到达回合','⟳ RESTART':'⟳ 重新开始','CELEBRATE':'庆祝','RESTART':'重新开始','PLAY AGAIN':'再玩一次','MAIN MENU':'主菜单','PAUSED':'已暂停','RESUME':'继续','SKIP':'跳过','VICTORY!':'胜利!','DANCE! The fighter copies you.':'跳舞吧!拳手会模仿你。','Keep going…':'继续…','DIFFICULTY: EASY':'难度:简单','DIFFICULTY: HARD':'难度:困难','Dodge sensitivity':'闪避灵敏度','Punch sensitivity':'出拳灵敏度','Neutral dead zone':'中立死区','Sensitivity':'灵敏度','MOVEMENT CHECK':'动作检查','PUNCH TEST':'出拳测试','HOW TO PLAY':'玩法说明','CAMERA OFF':'关闭摄像头','CAMERA: FRONT':'摄像头:前置','CAMERA: REAR (TV)':'摄像头:后置(电视)','TV':'电视','TV: ON':'电视:开','RIGHT HAND':'右手','Player':'玩家','Loading character…':'正在加载角色…','Character unavailable':'角色不可用','Loading the pose model…':'正在加载姿态模型…'}, es: {'ARCADE':'ARCADE','PLAY ONLINE':'JUGAR EN LÍNEA','TRAINING':'ENTRENAMIENTO','SETTINGS':'AJUSTES','Settings':'Ajustes','BACK':'VOLVER','SELECT CHARACTER':'ELIGE PERSONAJE','START GAME ▶':'EMPEZAR ▶','START GAME':'EMPEZAR','FREE':'GRATIS','PREMIUM':'PREMIUM','LOCKED':'BLOQUEADO','Purchases are not available yet.':'Las compras aún no están disponibles.','FIGHTER':'LUCHADOR','MOVE CLOSER':'ACÉRCATE','STEP BACK':'ALÉJATE UN POCO','RAISE BOTH HANDS':'LEVANTA AMBAS MANOS','SHOW BOTH HANDS':'MUESTRA AMBAS MANOS','KEEP YOUR SHOULDERS VISIBLE':'MANTÉN LOS HOMBROS VISIBLES','HOLD STILL':'QUÉDATE QUIETO','PERFECT! READY TO PLAY':'¡PERFECTO! LISTO PARA JUGAR','READY TO PLAY':'LISTO PARA JUGAR','ENABLE CAMERA':'ACTIVAR CÁMARA','TRY AGAIN':'REINTENTAR','PLEASE WAIT…':'ESPERA…','Your body is the controller.':'Tu cuerpo es el mando.','Camera permission was denied.':'Se denegó el permiso de la cámara.','Pose is read on this device. No video is recorded or uploaded.':'La pose se lee en este dispositivo. No se graba ni se sube vídeo.','FIGHT SETUP':'PREPARACIÓN','CALIBRATION':'CALIBRACIÓN','GET READY':'PREPÁRATE','FIGHT!':'¡PELEA!','ROUND':'ROUND','SCORE':'PUNTOS','HIGH SCORE':'RÉCORD','PUNCHES':'GOLPES','COMPLETE':'COMPLETADO','DODGE THE PUNCHES':'ESQUIVA LOS GOLPES','ATTACK!':'¡ATACA!','PUNCH FAST!':'¡GOLPEA RÁPIDO!','PUNCH FREELY':'GOLPEA LIBRE','DODGE RIGHT':'ESQUIVA A LA DERECHA','DODGE LEFT':'ESQUIVA A LA IZQUIERDA','DUCK':'AGÁCHATE','SIDESTEP':'PASO LATERAL','DODGED':'ESQUIVADO','PERFECT!':'¡PERFECTO!','KNOCKDOWN!':'¡KNOCKDOWN!','NEW BEST!':'¡NUEVO RÉCORD!','GAME OVER':'FIN DEL JUEGO','Final Score':'Puntuación final','FINAL SCORE':'PUNTUACIÓN FINAL','♛ High Score':'♛ Récord','Successful Hits':'Golpes acertados','Successful Dodges':'Esquivas logradas','Hits Received':'Golpes recibidos','Round Reached':'Ronda alcanzada','⟳ RESTART':'⟳ REINICIAR','CELEBRATE':'CELEBRAR','RESTART':'REINICIAR','PLAY AGAIN':'JUGAR DE NUEVO','MAIN MENU':'MENÚ PRINCIPAL','PAUSED':'EN PAUSA','RESUME':'REANUDAR','SKIP':'SALTAR','VICTORY!':'¡VICTORIA!','DANCE! The fighter copies you.':'¡BAILA! El luchador te copia.','Keep going…':'Sigue…','DIFFICULTY: EASY':'DIFICULTAD: FÁCIL','DIFFICULTY: HARD':'DIFICULTAD: DIFÍCIL','Dodge sensitivity':'Sensibilidad de esquiva','Punch sensitivity':'Sensibilidad de golpe','Neutral dead zone':'Zona muerta neutral','Sensitivity':'Sensibilidad','MOVEMENT CHECK':'PRUEBA DE MOVIMIENTO','PUNCH TEST':'PRUEBA DE GOLPES','HOW TO PLAY':'CÓMO JUGAR','CAMERA OFF':'CÁMARA APAGADA','CAMERA: FRONT':'CÁMARA: FRONTAL','CAMERA: REAR (TV)':'CÁMARA: TRASERA (TV)','TV':'TV','TV: ON':'TV: ACTIVADO','RIGHT HAND':'MANO DERECHA','Player':'Jugador','Loading character…':'Cargando personaje…','Character unavailable':'Personaje no disponible','Loading the pose model…':'Cargando el modelo de pose…'}, hi: {'ARCADE':'आर्केड','PLAY ONLINE':'ऑनलाइन खेलें','TRAINING':'अभ्यास','SETTINGS':'सेटिंग्स','Settings':'सेटिंग्स','BACK':'वापस','SELECT CHARACTER':'किरदार चुनें','START GAME ▶':'खेल शुरू करें ▶','START GAME':'खेल शुरू करें','FREE':'मुफ़्त','PREMIUM':'प्रीमियम','LOCKED':'लॉक','Purchases are not available yet.':'खरीदारी अभी उपलब्ध नहीं है।','FIGHTER':'फ़ाइटर','MOVE CLOSER':'थोड़ा पास आएँ','STEP BACK':'थोड़ा पीछे हटें','RAISE BOTH HANDS':'दोनों हाथ ऊपर करें','SHOW BOTH HANDS':'दोनों हाथ दिखाएँ','KEEP YOUR SHOULDERS VISIBLE':'कंधे दिखते रहें','HOLD STILL':'स्थिर रहें','PERFECT! READY TO PLAY':'बढ़िया! खेलने के लिए तैयार','READY TO PLAY':'खेलने के लिए तैयार','ENABLE CAMERA':'कैमरा चालू करें','TRY AGAIN':'दोबारा कोशिश करें','PLEASE WAIT…':'कृपया प्रतीक्षा करें…','Your body is the controller.':'आपका शरीर ही कंट्रोलर है।','Camera permission was denied.':'कैमरा की अनुमति अस्वीकार हुई।','Pose is read on this device. No video is recorded or uploaded.':'पोज़ इसी डिवाइस पर पढ़ा जाता है। कोई वीडियो रिकॉर्ड या अपलोड नहीं होता।','FIGHT SETUP':'फ़ाइट सेटअप','CALIBRATION':'कैलिब्रेशन','GET READY':'तैयार हो जाएँ','FIGHT!':'लड़ाई शुरू!','ROUND':'राउंड','SCORE':'स्कोर','HIGH SCORE':'उच्चतम स्कोर','PUNCHES':'मुक्के','COMPLETE':'पूरा','DODGE THE PUNCHES':'मुक्कों से बचें','ATTACK!':'हमला!','PUNCH FAST!':'तेज़ मुक्के मारें!','PUNCH FREELY':'खुलकर मुक्के मारें','DODGE RIGHT':'दाएँ बचें','DODGE LEFT':'बाएँ बचें','DUCK':'झुकें','SIDESTEP':'बगल हटें','DODGED':'बच गए','PERFECT!':'शानदार!','KNOCKDOWN!':'नॉकडाउन!','NEW BEST!':'नया रिकॉर्ड!','GAME OVER':'खेल खत्म','Final Score':'अंतिम स्कोर','FINAL SCORE':'अंतिम स्कोर','♛ High Score':'♛ उच्चतम स्कोर','Successful Hits':'सफल मुक्के','Successful Dodges':'सफल बचाव','Hits Received':'खाए हुए मुक्के','Round Reached':'पहुँचा राउंड','⟳ RESTART':'⟳ फिर से शुरू','CELEBRATE':'जश्न मनाएँ','RESTART':'फिर से शुरू','PLAY AGAIN':'फिर खेलें','MAIN MENU':'मुख्य मेनू','PAUSED':'रुका हुआ','RESUME':'जारी रखें','SKIP':'छोड़ें','VICTORY!':'जीत!','DANCE! The fighter copies you.':'नाचिए! फ़ाइटर आपकी नकल करेगा।','Keep going…':'जारी रखें…','DIFFICULTY: EASY':'कठिनाई: आसान','DIFFICULTY: HARD':'कठिनाई: कठिन','Dodge sensitivity':'बचाव संवेदनशीलता','Punch sensitivity':'मुक्का संवेदनशीलता','Neutral dead zone':'तटस्थ डेड ज़ोन','Sensitivity':'संवेदनशीलता','MOVEMENT CHECK':'मूवमेंट जाँच','PUNCH TEST':'मुक्का परीक्षण','HOW TO PLAY':'कैसे खेलें','CAMERA OFF':'कैमरा बंद','CAMERA: FRONT':'कैमरा: फ्रंट','CAMERA: REAR (TV)':'कैमरा: रियर (टीवी)','TV':'टीवी','TV: ON':'टीवी: चालू','RIGHT HAND':'दायाँ हाथ','Player':'खिलाड़ी','Loading character…':'किरदार लोड हो रहा है…','Character unavailable':'किरदार उपलब्ध नहीं','Loading the pose model…':'पोज़ मॉडल लोड हो रहा है…'} };
+var LANGS = ['en', 'ar', 'zh', 'es', 'hi'], LANGNAME = { en: 'ENGLISH', ar: 'ARABIC', zh: 'CHINESE', es: 'SPANISH', hi: 'HINDI' }, LANGSELF = { en: 'English', ar: 'العربية', zh: '中文', es: 'Español', hi: 'हिन्दी' };
 function tr(s) {
-  if (LANG.v !== 'ar' || typeof s !== 'string' || !s) return s;
-  var r = AR[s];
+  if (LANG.v === 'en' || typeof s !== 'string' || !s) return s;
+  var D = DICTS[LANG.v]; if (!D) return s;
+  var r = D[s];
   if (r !== undefined) return r;
   var m = /^(.*?)(\s[\d.]+x)$/.exec(s);                                          // "Dodge sensitivity 1.00x"
-  if (m && AR[m[1]] !== undefined) return AR[m[1]] + m[2];
+  if (m && D[m[1]] !== undefined) return D[m[1]] + m[2];
   return s;
 }
-function setLang(v) { LANG.v = v; try { document.documentElement.lang = v; } catch (e) { } }
+function setLang(v) { LANG.v = v; try { document.documentElement.lang = v; document.documentElement.dir = v === 'ar' ? 'rtl' : 'ltr'; localStorage.setItem('mb.lang', v); } catch (e) { } }
+function nextLang() { return LANGS[(LANGS.indexOf(LANG.v) + 1) % LANGS.length]; }
 
 var h0 = React.createElement;
 function h(type, props) {                                                          // createElement that translates string children and label/tag props when Arabic is on
   var a = arguments;
-  if (LANG.v !== 'ar') return h0.apply(null, a);
+  if (LANG.v === 'en') return h0.apply(null, a);
   var n = new Array(a.length), did = false, i, c, t;
   n[0] = type; n[1] = props;
   for (i = 2; i < a.length; i++) { c = a[i]; if (typeof c === 'string') { t = tr(c); if (t !== c) { did = true; c = t; } } n[i] = c; }
-  if (typeof type === 'string') { if (did && type === 'p' && !(props && props.dir)) n[1] = Object.assign({}, props, { dir: 'rtl' }); }
+  if (typeof type === 'string') { if (did && LANG.v === 'ar' && type === 'p' && !(props && props.dir)) n[1] = Object.assign({}, props, { dir: 'rtl' }); }
   else if (props && (typeof props.label === 'string' || typeof props.tag === 'string')) { n[1] = Object.assign({}, props); if (typeof props.label === 'string') n[1].label = tr(props.label); if (typeof props.tag === 'string') n[1].tag = tr(props.tag); }
   return h0.apply(null, n);
 }
-(function () { if (typeof CanvasRenderingContext2D === 'undefined') return; var P = CanvasRenderingContext2D.prototype; ['fillText', 'strokeText', 'measureText'].forEach(function (k) { var o = P[k]; P[k] = function (t) { if (LANG.v === 'ar' && typeof t === 'string') arguments[0] = tr(t); return o.apply(this, arguments); }; }); })();
+(function () { if (typeof CanvasRenderingContext2D === 'undefined') return; var P = CanvasRenderingContext2D.prototype; ['fillText', 'strokeText', 'measureText'].forEach(function (k) { var o = P[k]; P[k] = function (t) { if (LANG.v !== 'en' && typeof t === 'string') arguments[0] = tr(t); return o.apply(this, arguments); }; }); })();
 var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef;
 
 /* ======================================================================
@@ -1213,7 +1221,7 @@ var CFG = {
   smooth: 0.6,          // EMA weight of the newest landmark sample (higher = less lag, more jitter)
   visMin: 0.4,          // minimum landmark visibility to trust a joint
   closeFrac: 0.60,      // shoulder width / frame width above this = "Move Back" (phone held close is fine)
-  farFrac: 0.14,        // below this = "Move Closer"
+  farFrac: 0.09,        // below this = "Move Closer"
   stillMax: 0.30,       // head movement (SW) allowed while calibrating
   punch: {              // per-hand punch state machine GUARD -> WINDUP -> STRIKE -> RECOVERY -> READY. Rates are in shoulder widths (SW) per second or degrees per second
     vMin: 0.8, vSpan: 1.6,        // wrist speed relative to the shoulder (SW/s): 0 below vMin, full at vMin+vSpan
@@ -1244,16 +1252,16 @@ var CFG = {
 };
 
 /* User-tunable settings (saved on this device). dodge and punch are sensitivity multipliers: 1 = default, higher = more sensitive. */
-var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false };      // dodge default lowered to 0.7 (sideways movement felt too fast); 1.00 is the previous behaviour
+var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: false };      // dodge default lowered to 0.7 (sideways movement felt too fast); 1.00 is the previous behaviour
 (function () {
   try {
     var o = JSON.parse(localStorage.getItem('mb.settings3') || 'null'), old = false;
     if (!o) { o = JSON.parse(localStorage.getItem('mb.settings2') || 'null'); old = true; }          // settings saved before the lower default: keep punch/dead, take the new dodge default
-    if (o) { if (!old && typeof o.dodge === 'number') SETTINGS.dodge = clamp(o.dodge, 0.4, 2.5); if (typeof o.punch === 'number') SETTINGS.punch = clamp(o.punch, 0.4, 2.5); if (typeof o.dead === 'number') SETTINGS.dead = clamp(o.dead, 0.4, 2.5); if (typeof o.anim === 'boolean') SETTINGS.anim = o.anim; }
+    if (o) { if (!old && typeof o.dodge === 'number') SETTINGS.dodge = clamp(o.dodge, 0.4, 2.5); if (typeof o.punch === 'number') SETTINGS.punch = clamp(o.punch, 0.4, 2.5); if (typeof o.dead === 'number') SETTINGS.dead = clamp(o.dead, 0.4, 2.5); if (typeof o.anim === 'boolean') SETTINGS.anim = o.anim; if (typeof o.hard === 'boolean') SETTINGS.hard = o.hard; }
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim })); } catch (e) {} }
+function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard })); } catch (e) {} }
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -2203,10 +2211,12 @@ K3.makeOpponent = function (gltf, buf, scene, renderer) {
 };
 /* ===== SECOND CHARACTER: Emerald. Same game, same live pose solver and accents: Khalid's rig is solved as always, and its world-space bone rotations are
    transferred onto Emerald's own skeleton (bones are paired by position and role; the rest poses are nearly identical, so the transfer is a pure rotation delta). ===== */
+var PREMIUM = { valkyrie: { price: '$10' } }, OWNED = {};          // pink character: no payment system is connected, so nothing is ever owned and it cannot be selected
+function charFree(id) { return !PREMIUM[id] || !!OWNED[id]; }
 var CHARS = [{ id: 'khalid', name: 'KHALID' }, { id: 'emerald', name: 'EMERALD' }, { id: 'valkyrie', name: 'VALKYRIE' }];
 var CHAR = { id: 'khalid' };
-try { var cs0 = localStorage.getItem('mb.char'); if (cs0 === 'emerald' || cs0 === 'khalid' || cs0 === 'valkyrie') CHAR.id = cs0; } catch (e) { }
-function setChar(id) { CHAR.id = (id === 'emerald' || id === 'valkyrie') ? id : 'khalid'; try { localStorage.setItem('mb.char', CHAR.id); } catch (e) { } }
+try { var cs0 = localStorage.getItem('mb.char'); if (cs0 === 'emerald' || cs0 === 'khalid') CHAR.id = cs0; } catch (e) { }
+function setChar(id) { if (!charFree(id)) id = 'khalid'; CHAR.id = (id === 'emerald' || id === 'valkyrie') ? id : 'khalid'; try { localStorage.setItem('mb.char', CHAR.id); } catch (e) { } }
 K3.em = null; K3.emStatus = 'idle'; K3.ems = {};
 K3.chSrc = function (id) {                                             // the model data of an extra fighter (embedded in the page)
   if (id === 'valkyrie') return typeof VALKYRIE_GLB_B64 === 'string' && typeof VALKYRIE_MAP !== 'undefined' ? { b64: VALKYRIE_GLB_B64, map: VALKYRIE_MAP } : null;
@@ -2562,8 +2572,8 @@ ARC.ZONES = {
   B: { cx: 240, cy: 650, r: 62,  label: 'SIDESTEP',    ptype: 'upper', type: 'body' }            // low and narrow: step to either side
 };
 var ARC_WARN = [1.2, 1.1, 1.0, 0.9, 0.85];                                    // warning-to-impact seconds for rounds 1..5; after that 0.04 s faster per round, never below 0.6 s (tracking latency + human reaction)
-function arcWarnT(r) { return r <= ARC_WARN.length ? ARC_WARN[r - 1] : Math.max(0.6, 0.85 - (r - 5) * 0.04); }
-function arcGap(r) { return Math.max(0.1, 0.25 - (r - 1) * 0.02); }          // pause between a punch and the next warning
+function arcWarnT(r) { if (SETTINGS.hard) r += 3; return r <= ARC_WARN.length ? ARC_WARN[r - 1] : Math.max(0.6, 0.85 - (r - 5) * 0.04); }          // Hard starts where Easy is at round 4 and keeps tightening
+function arcGap(r) { if (SETTINGS.hard) r += 3; return Math.max(0.1, 0.25 - (r - 1) * 0.02); }          // pause between a punch and the next warning
 function arcSeq(r) {
   var pool = r < 2 ? ['L', 'R', 'H'] : ['L', 'R', 'H', 'B'], out = [], prev = '', k, c, g;
   for (k = 0; k < ARC.N; k++) { g = 0; do { c = pool[Math.floor(Math.random() * pool.length)]; g++; } while (c === prev && g < 12); out.push(c); prev = c; }
@@ -3199,7 +3209,7 @@ function textOutlined(ctx, str, x, y, size, fill, alpha) {
   ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(4, size * 0.16); ctx.strokeStyle = '#120a33'; ctx.strokeText(str, x, y); ctx.fillStyle = fill; ctx.fillText(str, x, y); ctx.restore();
 }
 
-var HFONT = '"Rubik","Arial Black","Impact",sans-serif';
+var HFONT = '"Rubik","Arial Black","Impact","Noto Sans SC","PingFang SC","Microsoft YaHei","Noto Sans Devanagari","Nirmala UI",sans-serif';
 /* Health colours: 76-100 bright green, 51-75 yellow-green, 26-50 orange/yellow, 1-25 red, 0 empty */
 function hpColors(hp) {
   return hp > 75 ? ['#b8ff5a', '#35e80c', '#13a800'] : hp > 50 ? ['#e6ff5c', '#b2e612', '#76a800'] : hp > 25 ? ['#ffe36b', '#ffb11a', '#d97800'] : ['#ff8a7a', '#ff2e2e', '#b30000'];
@@ -3648,6 +3658,7 @@ function HandCursor(props) {
       if (!c.valid || (props.lowOnly && c.ny < 0.74)) { el.style.opacity = '0'; setHover(null); fg.style.strokeDashoffset = CIRC; raf = requestAnimationFrame(frame); return; }   // in training the cursor only appears when the right hand drops below the shoulders, so punching never selects buttons
       el.style.opacity = '1';
       var tx = c.nx * window.innerWidth, ty = c.ny * window.innerHeight, d = Math.hypot(tx - cx, ty - cy);
+      if (d < 4) { tx = cx; ty = cy; d = 0; }                    // small dead zone: a resting hand does not shake the cursor
       var a = clamp(0.12 + d / 260, 0.12, 0.7);           // heavier smoothing when still, quick when moving
       cx += (tx - cx) * a; cy += (ty - cy) * a;
       el.style.transform = 'translate(' + cx + 'px,' + cy + 'px)';
@@ -3881,7 +3892,7 @@ function SrvPill(props) {
 function FgChar(props) {
   var st = useState(0), bump = st[1];
   useEffect(function () { var id = setInterval(function () { bump(function (n) { return n + 1; }); }, 600); return function () { clearInterval(id); }; }, []);
-  function pick(d) { var i = 0; CHARS.forEach(function (c, k) { if (c.id === CHAR.id) i = k; }); setChar(CHARS[(i + d + CHARS.length) % CHARS.length].id); Sfx.ding(); bump(function (n) { return n + 1; }); }
+  function pick(d) { var L = CHARS.filter(function (c) { return charFree(c.id); }), i = 0; L.forEach(function (c, k) { if (c.id === CHAR.id) i = k; }); setChar(L[(i + d + L.length) % L.length].id); Sfx.ding(); bump(function (n) { return n + 1; }); }
   var cur = CHARS.filter(function (c) { return c.id === CHAR.id; })[0], wait = CHAR.id !== 'khalid' && K3.chStatus(CHAR.id) !== 'ready';
   return h('div', { className: 'fgchar', role: 'group', 'aria-label': 'Choose your fighter' },
     h('button', { className: 'btn ghost fgarrow', 'data-hand': '1', 'aria-label': 'Previous fighter', onClick: function () { pick(-1); } }, h(Ico, { n: 'back' }), h('i', { className: 'sweep' })),
@@ -3891,9 +3902,8 @@ function FgChar(props) {
 }
 function LangPick(props) {
   return h(FgFrame, null,
-    h('p', { className: 'fgnote' }, 'Choose your language · اختر اللغة'),
-    h('button', { className: 'btn hot', onClick: function () { props.onPick('en'); } }, h('span', { className: 'lb' }, 'ENGLISH'), h('i', { className: 'sweep' })),
-    h('button', { className: 'btn', dir: 'rtl', onClick: function () { props.onPick('ar'); } }, h('span', { className: 'lb' }, 'العربية'), h('i', { className: 'sweep' })));
+    h('p', { className: 'fgnote' }, 'Choose your language · اختر اللغة · 选择语言 · Elige idioma · भाषा चुनें'),
+    LANGS.map(function (l) { return h('button', { key: l, className: 'btn' + (l === 'en' ? ' hot' : ''), dir: l === 'ar' ? 'rtl' : 'ltr', onClick: function () { props.onPick(l); } }, h('span', { className: 'lb' }, LANGSELF[l]), h('i', { className: 'sweep' })); }));
 }
 function MainMenu(props) {
   var loading = props.k3 === 'loading' || props.k3 === 'idle';
@@ -4012,7 +4022,8 @@ function SettingsScreen(props) {
       h('div', { className: 'setl-btns' },
         bt('play', 'MOVEMENT CHECK', props.onMovement), bt('glove', 'PUNCH TEST', props.onPunchTest),
         bt('dumb', 'FIGHT SETUP', props.onFightCal), bt('cam', 'CAMERA: ' + (props.camPref === 'environment' ? 'REAR (TV)' : 'FRONT'), function () { props.onCamPref(props.camPref === 'environment' ? 'auto' : 'environment'); }),
-        bt('people', LANG.v === 'ar' ? 'LANGUAGE: ARABIC' : 'LANGUAGE: ENGLISH', props.onLang, 'wide'),
+        bt('glove', SETTINGS.hard ? 'DIFFICULTY: HARD' : 'DIFFICULTY: EASY', function () { setS('hard', !SETTINGS.hard); }),
+        bt('people', 'LANGUAGE: ' + LANGNAME[LANG.v], props.onLang, 'wide'),
         bt('play', 'HOW TO PLAY', props.onHow), bt('cam', 'CAMERA OFF', props.onCamOff)),
       h('div', { className: 'setl-back' }, h(FgBtn, { cls: 'gold', icon: 'back', label: 'BACK', onClick: props.onBack })));
   }
@@ -4024,7 +4035,8 @@ function SettingsScreen(props) {
     h('div', { className: 'spacer' }),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onMovement }, 'MOVEMENT CHECK'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onPunchTest }, 'PUNCH TEST')),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onFightCal }, 'FIGHT SETUP'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: function () { props.onCamPref(props.camPref === 'environment' ? 'auto' : 'environment'); } }, 'CAMERA: ' + (props.camPref === 'environment' ? 'REAR (TV)' : 'FRONT'))),
-    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onLang }, LANG.v === 'ar' ? 'LANGUAGE: ARABIC' : 'LANGUAGE: ENGLISH'), h('span', { style: { display: 'none' } })),
+    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: function () { setS('hard', !SETTINGS.hard); } }, SETTINGS.hard ? 'DIFFICULTY: HARD' : 'DIFFICULTY: EASY')),
+    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onLang }, 'LANGUAGE: ' + LANGNAME[LANG.v]), h('span', { style: { display: 'none' } })),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onHow }, 'HOW TO PLAY'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onCamOff }, 'CAMERA OFF')),
     h('div', { className: 'row' }, h('span', { style: { display: 'none' } }), h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: props.onBack }, 'BACK')));
 }
@@ -4109,7 +4121,7 @@ function Permission(props) {
       : h('p', { className: 'fgnote' }, 'Your body is the controller.'),
     h(FgBtn, { hot: true, cls: 'gold', icon: 'cam', label: err ? 'TRY AGAIN' : busy ? 'PLEASE WAIT…' : 'ENABLE CAMERA', onClick: go, disabled: busy }),
     h('p', { className: 'fgnote' }, 'Pose is read on this device. No video is recorded or uploaded.'),
-    h(FgBtn, { cls: 'ghost sm debug', label: 'KEYBOARD MODE (NO CAMERA)', onClick: props.onDebug }));
+    null);
 }
 
 
@@ -4522,16 +4534,18 @@ function CharSelect(props) {
   var st = useState(0), bump = st[1], cvs = useRef([]);
   useEffect(function () { var id = setInterval(function () { bump(function (n) { return n + 1; }); }, 600); return function () { clearInterval(id); }; }, []);
   var faces = useRef({});
-  function pick(id) { setChar(id); try { Sfx.ding(); } catch (e) { } bump(function (n) { return n + 1; }); }
+  var ns = useState(''), note = ns[0], setNote = ns[1];
+  function pick(id) { if (!charFree(id)) { setNote('Purchases are not available yet.'); return; } setNote(''); setChar(id); try { Sfx.ding(); } catch (e) { } bump(function (n) { return n + 1; }); }
   return h('div', { className: 'cs2', role: 'group', 'aria-label': 'Select character' },
     h('h2', null, 'SELECT CHARACTER'),
     h('div', { className: 'cs2row' }, CHARS.map(function (c) {
-      var on = c.id === CHAR.id, bad = K3.chStatus(c.id) === 'error';
-      return h('button', { key: c.id, className: 'cs2card' + (on ? ' on' : ''), 'data-hand': '1', 'aria-pressed': on, onClick: function () { pick(c.id); } },
+      var on = c.id === CHAR.id && charFree(c.id), bad = K3.chStatus(c.id) === 'error';
+      return h('button', { key: c.id, className: 'cs2card' + (on ? ' on' : '') + (charFree(c.id) ? '' : ' locked'), 'data-hand': '1', 'aria-pressed': on, onClick: function () { pick(c.id); } },
         h('i', { className: 'ck' }, '✓'),
         h('canvas', { width: 180, height: 240, ref: function (el) { if (el) paintCard(el, c.id); } }),
-        h('b', null, c.name), h('i', { className: 'tag' }, bad ? 'UNAVAILABLE' : 'FREE'));
+        h('b', null, c.name), !charFree(c.id) ? h('i', { className: 'tag prem' }, '🔒 ' + tr('PREMIUM') + ' ' + PREMIUM[c.id].price) : h('i', { className: 'tag' }, bad ? 'UNAVAILABLE' : 'FREE'));
     })),
+    note ? h('p', { className: 'fgnote', role: 'status' }, note) : null,
     h('button', { className: 'cs2go', 'data-hand': '1', onClick: props.onStart }, 'START GAME ▶'),
     h('button', { className: 'btn ghost', 'data-hand': '1', onClick: props.onBack }, 'BACK'));
 }
@@ -4574,7 +4588,7 @@ function ArcOver(props) {
           h('div', { className: 'agt' }, 'GAME OVER'),
           h('div', { className: 'agsc' }, h('div', null, h('small', null, 'Final Score'), h('b', null, r.score)), h('div', null, h('small', null, '♛ High Score'), h('b', null, best))),
           row('🥊', 'Successful Hits', r.punches), row('🏃', 'Successful Dodges', r.dodges), row('💥', 'Hits Received', r.taken), row('🏆', 'Round Reached', r.round)),
-        h('button', { className: 'agbtn', 'data-hand': '1', onClick: props.onAgain }, '⟳ RESTART'))));
+        h('div', { className: 'agb' }, h('button', { className: 'agbtn', 'data-hand': '1', onClick: props.onAgain }, '⟳ RESTART'), h('button', { className: 'agbtn alt', 'data-hand': '1', onClick: props.onCelebrate }, 'CELEBRATE')))));
 }
 function ArcadeResult(props) {
   var r = props.result, best = Math.max(r.best || 0, r.score || 0), stat = function (l, v, cls) { return h('div', { className: 'stat ' + (cls || '') }, h('span', null, l), h('b', null, v)); };
@@ -4769,7 +4783,7 @@ function App() {
   var tr = useRef(null); if (!tr.current) tr.current = new Tracker();
   var dbg = useRef(null); if (!dbg.current) dbg.current = new DebugInput();
   var tracker = tr.current;
-  var s1 = useState(function () { var m = /[?&]lang=(en|ar)/.exec(location.search); if (m) { setLang(m[1]); return 'permission'; } return 'lang'; }), screen = s1[0], setScreen = s1[1];      // the language question comes first, then the camera
+  var s1 = useState(function () { var m = /[?&]lang=(en|ar|zh|es|hi)/.exec(location.search); if (m) { setLang(m[1]); return 'permission'; } try { var sv = localStorage.getItem('mb.lang'); if (sv && LANGS.indexOf(sv) >= 0) { setLang(sv); return 'permission'; } } catch (e) { } return 'lang'; }), screen = s1[0], setScreen = s1[1];      // the language question comes first, then the camera
   var lgs = useState(0), bumpLang = lgs[1];
   var s2 = useState('camera'), mode = s2[0], setMode = s2[1];
   var s3 = useState(null), result = s3[0], setResult = s3[1];
@@ -4781,7 +4795,7 @@ function App() {
   var s9 = useState(loadNetCfg), cfg = s9[0], setCfg = s9[1];
   var s10 = useState(null), mpRes = s10[0], setMpRes = s10[1];
   var s11 = useState(CAMPREF.v), camPref = s11[0], setCamPrefS = s11[1], switching = useRef(false), badFacing = useRef('');
-  var s14 = useState(false), fcReview = s14[0], setFcReview = s14[1], celeNext = useRef('result'), forceFc = useRef(false), s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
+  var s14 = useState(false), fcReview = s14[0], setFcReview = s14[1], celeNext = useRef('result'), pendingPlay = useRef(null), forceFc = useRef(false), s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
   useEffect(function () {                                                      // follow rotation / resizing (landscape for a TV)
     var f = function () { setVp(function (n) { return n + 1; }); };
     window.addEventListener('resize', f); window.addEventListener('orientationchange', f);
@@ -4835,18 +4849,18 @@ function App() {
     onReady: function () { tracker.startTracking(); setMode('camera'); setCamOn(true); setCalibrated(false); setScreen('calibration'); },
     onDebug: function () { tracker.releaseCamera(); setCamOn(false); setCalibrated(false); dbg.current.attach(); setMode('debug'); play('training'); }
   });
-  else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); FCAL.load(); if (FCAL.data && !forceFc.current) { FCAL.apply(tracker.engine); setScreen(inviteRef.current ? 'room' : 'menu'); } else { forceFc.current = false; setScreen('fightcal'); } }, onBack: camOff });
+  else if (screen === 'calibration') body = h(Calibration, { tracker: tracker, onDone: function () { setCalibrated(true); FCAL.load(); if (pendingPlay.current) { var pm = pendingPlay.current; pendingPlay.current = null; play(pm); return; } if (FCAL.data && !forceFc.current) { FCAL.apply(tracker.engine); setScreen(inviteRef.current ? 'room' : 'menu'); } else { forceFc.current = false; setScreen('fightcal'); } }, onBack: function () { if (pendingPlay.current) { pendingPlay.current = null; setScreen('menu'); } else camOff(); } });
   else if (screen === 'fightcal') body = h(FightCal, { tracker: tracker, onReview: setFcReview, onDone: function () { setScreen(inviteRef.current ? 'room' : 'menu'); } });
-  else if (screen === 'menu') body = h(MainMenu, { tracker: tracker, camOn: camOn, k3: k3, tv: camPref === 'environment', onTv: toggleTv, onOnline: function () { setScreen('online'); }, onTraining: function () { play('training'); }, onArcade: function () { setScreen('charsel'); }, onSettings: function () { setScreen('settings'); } });
-  else if (screen === 'charsel') body = h(CharSelect, { onStart: function () { play('arcade'); }, onBack: function () { setScreen('menu'); } });
-  else if (screen === 'arcover') body = h(ArcOver, { result: result || {}, tracker: tracker, input: input, onAgain: function () { play('arcade'); } });
+  else if (screen === 'menu') body = h(MainMenu, { tracker: tracker, camOn: camOn, k3: k3, tv: camPref === 'environment', onTv: toggleTv, onOnline: function () { setScreen('online'); }, onTraining: function () { pendingPlay.current = 'training'; setScreen('calibration'); }, onArcade: function () { setScreen('charsel'); }, onSettings: function () { setScreen('settings'); } });
+  else if (screen === 'charsel') body = h(CharSelect, { onStart: function () { pendingPlay.current = 'arcade'; setScreen('calibration'); }, onBack: function () { setScreen('menu'); } });
+  else if (screen === 'arcover') body = h(ArcOver, { result: result || {}, tracker: tracker, input: input, onAgain: function () { pendingPlay.current = 'arcade'; setScreen('calibration'); }, onCelebrate: function () { celeNext.current = 'arcover'; setScreen('celebrate'); } });
   else if (screen === 'online') body = h(OnlineMenu, { key: 'o' + cfg.url + cfg.kind, net: net, onPrivate: function () { setScreen('room'); }, onBack: function () { netRef.current.close(); setScreen('menu'); } });
   else if (screen === 'room') body = h(PrivateRoom, { key: 'r' + cfg.url + cfg.kind, net: net, autoJoin: inviteRef.current, onVsAi: inviteRef.current ? null : function () { netRef.current.close(); play('game'); }, onBack: function () { if (inviteRef.current) { inviteRef.current = ''; netRef.current.close(); setScreen('menu'); } else setScreen('online'); } });
   else if (screen === 'lobby') body = h(Lobby, { net: net, onLeave: function () { netRef.current.leaveRoom(); setScreen('room'); } });
   else if (screen === 'mp') body = h(MpMatch, { key: 'mp', net: net, tracker: tracker, input: input, onLeave: function () { setScreen('room'); }, onEnd: function (r) { setMpRes(r); celeNext.current = 'mpresult'; setScreen(r && r.outcome === 'win' && mode === 'camera' && K3.status === 'ready' ? 'celebrate' : 'mpresult'); } });
   else if (screen === 'celebrate') body = h(Celebrate, { tracker: tracker, input: input, onDone: function () { setScreen(celeNext.current || 'result'); } });
   else if (screen === 'mpresult') body = h(MpResult, { result: mpRes || {}, onLobby: function () { setScreen(netRef.current.room ? 'lobby' : 'room'); }, onHome: home });
-  else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, camPref: camPref, onCamPref: chooseCam, onLang: function () { setLang(LANG.v === 'ar' ? 'en' : 'ar'); bumpLang(function (n) { return n + 1; }); }, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
+  else if (screen === 'settings') body = h(SettingsScreen, { cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, camPref: camPref, onCamPref: chooseCam, onLang: function () { setLang(nextLang()); bumpLang(function (n) { return n + 1; }); }, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
   else if (screen === 'punchtest') body = h(PunchTest, { tracker: tracker, onBack: function () { setScreen('settings'); } });
   else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, mode: 'settings', onDone: function () { setScreen('settings'); }, onProgress: function () { }, onBack: function () { setScreen('settings'); } });
   else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); celeNext.current = 'result'; if (r && r.mode === 'arcade') { setScreen('arcover'); return; } setScreen(r && r.outcome === 'win' && !(mode === 'debug') && K3.status === 'ready' ? 'celebrate' : 'result'); } });
@@ -4862,7 +4876,7 @@ function App() {
   return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null);
 }
 
-window.__MB = { UI: { CharSelect: CharSelect, ArcOver: ArcOver, App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
+window.__MB = { OWNED: OWNED, PREMIUM: PREMIUM, charFree: charFree, UI: { CharSelect: CharSelect, ArcOver: ArcOver, App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
