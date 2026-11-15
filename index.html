@@ -1252,16 +1252,17 @@ var CFG = {
 };
 
 /* User-tunable settings (saved on this device). dodge and punch are sensitivity multipliers: 1 = default, higher = more sensitive. */
-var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: false };      // dodge default lowered to 0.7 (sideways movement felt too fast); 1.00 is the previous behaviour
+var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: false, stance: 'auto' };      // dodge default lowered to 0.7 (sideways movement felt too fast); 1.00 is the previous behaviour
 (function () {
   try {
     var o = JSON.parse(localStorage.getItem('mb.settings3') || 'null'), old = false;
     if (!o) { o = JSON.parse(localStorage.getItem('mb.settings2') || 'null'); old = true; }          // settings saved before the lower default: keep punch/dead, take the new dodge default
-    if (o) { if (!old && typeof o.dodge === 'number') SETTINGS.dodge = clamp(o.dodge, 0.4, 2.5); if (typeof o.punch === 'number') SETTINGS.punch = clamp(o.punch, 0.4, 2.5); if (typeof o.dead === 'number') SETTINGS.dead = clamp(o.dead, 0.4, 2.5); if (typeof o.anim === 'boolean') SETTINGS.anim = o.anim; if (typeof o.hard === 'boolean') SETTINGS.hard = o.hard; }
+    if (o) { if (!old && typeof o.dodge === 'number') SETTINGS.dodge = clamp(o.dodge, 0.4, 2.5); if (typeof o.punch === 'number') SETTINGS.punch = clamp(o.punch, 0.4, 2.5); if (typeof o.dead === 'number') SETTINGS.dead = clamp(o.dead, 0.4, 2.5); if (typeof o.anim === 'boolean') SETTINGS.anim = o.anim; if (typeof o.hard === 'boolean') SETTINGS.hard = o.hard; if (o.stance === 'auto' || o.stance === 'stand' || o.stance === 'sit') SETTINGS.stance = o.stance; }
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard })); } catch (e) {} }
+var STANCE_LABEL = { auto: 'AUTO', stand: 'STANDING', sit: 'SITTING' }, STANCE_NEXT = { auto: 'stand', stand: 'sit', sit: 'auto' };
+function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -1538,17 +1539,37 @@ GestureEngine.prototype.update = function (raw, vw, vh, t, world) {
 
   // ---- full-body or upper-body: chosen automatically from what the camera can reliably see, with hysteresis so a brief dropout does not flip it ----
   var HL = L[23], HR = L[24], KL = L[25], KR = L[26], AL = L[27], AR = L[28];
-  var fbSeen = !!(HL && HR && KL && KR) && seen(HL) && seen(HR) && seen(KL) && seen(KR) && HL.v > 0.65 && HR.v > 0.65;
+  var fbSeen = !!(HL && HR && KL && KR) && seen(HL) && seen(HR) && seen(KL) && seen(KR) && HL.v > 0.65 && HR.v > 0.65, stance = SETTINGS.stance || 'auto';
+  if (fbSeen && stance !== 'stand') {                                        // seated (thighs point at the camera) or deeply bent legs are not a standing body: the thighs must reach down the picture
+    var thR0 = Math.hypot(KR.X - HR.X, KR.Y - HR.Y), thL0 = Math.hypot(KL.X - HL.X, KL.Y - HL.Y), dyR = KR.Y - HR.Y, dyL = KL.Y - HL.Y, on = f.bodyMode === 'full';
+    var minLen = on ? 0.4 : 0.9, minDy = on ? 0.2 : 0.6;
+    var pick = on ? Math.max : Math.min;                                  // to enter: both thighs reach down; once in, one lifted knee (a short thigh pointing at the camera) must not end it
+    if (pick(thR0, thL0) < sw * minLen || pick(dyR, dyL) < sw * minDy) fbSeen = false;
+  }
+  if (stance === 'sit') fbSeen = false;
   if (fbSeen) { this.fbOn = (this.fbOn || 0) + 1; this.fbOff = 0; } else { this.fbOff = (this.fbOff || 0) + 1; this.fbOn = 0; }
-  if (f.bodyMode !== 'full' && this.fbOn >= 24) { f.bodyMode = 'full'; this.baseHipY = null; }            // about 0.8 s of steady legs
+  if (f.bodyMode !== 'full' && this.fbOn >= 24) { f.bodyMode = 'full'; this.baseHipY = null; this.baseHipX = null; this.baseTh = 0; this.baseSh = 0; }            // about 0.8 s of steady legs
   else if (f.bodyMode === 'full' && this.fbOff >= 18) f.bodyMode = 'upper';                            // about 0.6 s without them
   else if (!f.bodyMode) f.bodyMode = 'upper';
+  f.leanVis = f.lean; f.legs = null; f.hop = 0;
   if (f.bodyMode === 'full' && fbSeen) {
-    var hipY = (HL.Y + HR.Y) / 2, thigh = Math.max(sw * 0.6, (Math.hypot(KL.X - HL.X, KL.Y - HL.Y) + Math.hypot(KR.X - HR.X, KR.Y - HR.Y)) / 2);
+    var hipY = (HL.Y + HR.Y) / 2, hipX = (HL.X + HR.X) / 2, thigh = Math.max(sw * 0.6, (Math.hypot(KL.X - HL.X, KL.Y - HL.Y) + Math.hypot(KR.X - HR.X, KR.Y - HR.Y)) / 2);
     if (this.baseHipY == null) this.baseHipY = hipY; else if (Math.abs(hipY - this.baseHipY) / thigh < 0.04) this.baseHipY += (hipY - this.baseHipY) * 0.02;
     f.squat = clamp((hipY - this.baseHipY) / thigh / 0.28, 0, 1);                                      // bending the knees lowers the hips: a squat is a duck too
     f.duck = Math.max(f.duck, f.squat);
-    f.hipDx = ((HL.X + HR.X) / 2 - (this.baseMidX != null ? this.baseMidX : (HL.X + HR.X) / 2)) / sw;
+    f.hop = clamp((this.baseHipY - hipY) / thigh / 0.3, 0, 1);                                           // hips rising above the standing level: a jump
+    if (this.baseHipX == null) this.baseHipX = hipX;
+    var ddx = (hipX - this.baseHipX) / sw, rr = Math.abs(ddx) < 0.04 ? 0.01 : (this.steadyT > 2 ? 0.02 : 0); this.baseHipX += (hipX - this.baseHipX) * rr;
+    f.hipDx = ddx;                                                                                         // the hips walked sideways: the fighter steps with you
+    f.leanVis = CFG.dodge.head * headRel + CFG.dodge.torso * (shDx - ddx);                                // the visible upper-body lean is only what the shoulders did on top of the hips
+    var one = function (H, K, A) {                                                                         // thigh and shin as unit-less vectors (1 = the standing bone length), image y down
+      var tl = Math.hypot(K.X - H.X, K.Y - H.Y), o = { kx: 0, ky: 1, ax: 0, ay: 1, va: 0 };
+      this.baseTh = Math.max((this.baseTh || 0) * 0.9998, tl, sw * 0.8); var tn = Math.min(this.baseTh, sw * 2.4);
+      o.kx = (K.X - H.X) / tn; o.ky = (K.Y - H.Y) / tn;
+      if (A && seen(A) && A.v > 0.5) { var sl = Math.hypot(A.X - K.X, A.Y - K.Y); this.baseSh = Math.max((this.baseSh || 0) * 0.9998, sl, sw * 0.7); var sn = Math.min(this.baseSh, sw * 2.4); o.ax = (A.X - K.X) / sn; o.ay = (A.Y - K.Y) / sn; o.va = 1; }
+      return o;
+    };
+    f.legs = { R: one.call(this, HR, KR, AR), L: one.call(this, HL, KL, AL) };
   } else { f.squat = 0; f.hipDx = 0; }
 
   // quiet re-centring: tiny offsets are absorbed at once, a larger offset only after the head has been still for 2 s
@@ -1659,6 +1680,7 @@ Tracker.prototype.getUpper = function () {
   // Continuous lean: a small head/shoulder offset already moves the avatar noticeably (ease-out curve), and it saturates at a modest lean.
   var l = f.lean, al = Math.abs(l), dead = Math.min(0.08, Math.max(D.dead * SETTINGS.dead, e.leanNoise * 2.5)), full = D.full / sens;
   var u = clamp((al - dead) / Math.max(0.02, full - dead), 0, 1);
+  if (f.bodyMode === 'full' && f.legs) { l = f.leanVis; al = Math.abs(l); u = clamp((al - dead) / Math.max(0.02, full - dead), 0, 1); }       // legs tracked: the hips do the stepping, the trunk only leans
   var x = (l < 0 ? -1 : 1) * P.max * Math.pow(u, 1.1);      // dead zone, then proportional: the avatar leans as much as you do (visual only, no gameplay action)
   var arm = function (a, sg) { return tracking && a.vis ? { out: a.rel.x * sg, up: a.rel.y, eout: a.erel.x * sg, eup: a.erel.y, ext: a.ext, wrx: a.rel.x, wry: a.rel.y, erx: a.erel.x, ery: a.erel.y, z1: a.z1, z2: a.z2 } : null; };
   return {
@@ -1667,6 +1689,7 @@ Tracker.prototype.getUpper = function () {
     roll: tracking ? f.roll : 0,
     head: tracking ? f.head : 0, dodge: tracking ? f.dodge : null,
     R: arm(e.arms.R, 1), L: arm(e.arms.L, -1),
+    legs: tracking && f.bodyMode === 'full' ? f.legs : null, walk: tracking && f.bodyMode === 'full' ? f.hipDx : 0, hop: tracking && f.bodyMode === 'full' ? f.hop : 0,
     vis: { ls: f.visLS, rs: f.visRS, lw: f.visLW, rw: f.visRW, shoulders: f.visLS && f.visRS, all: f.visLS && f.visRS && f.visLW && f.visRW }
   };
 };
@@ -1994,6 +2017,7 @@ var KRig = (function () {
   function vmul(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
   function vdot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
   function vcross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function vlen(a) { return Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]); }
   function vnorm(a) { var l = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
   function qmul(a, b) { return [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]]; }
   function qinv(a) { return [-a[0], -a[1], -a[2], a[3]]; }
@@ -2097,8 +2121,27 @@ var KRig = (function () {
     var leanW = lean;
     rig.hips[0] += RIGHT[0] * (o.x || 0) * (o.shift != null ? o.shift : 0.25);                    // small lateral shift of the whole body
     var fall = cl(o.fall || 0, 0, 1);
-    rig.hips[1] -= duck * 0.2 + cl(o.dip || 0, 0, 1) * 0.07 + fall * 0.40; rig.hips[2] -= fall * 0.42;
+    rig.hips[1] -= duck * 0.2 * (1 - (o.legs ? cl(o.legW || 0, 0, 1) : 0)) + cl(o.dip || 0, 0, 1) * 0.07 + fall * 0.40; rig.hips[2] -= fall * 0.42;
     rig.hips[2] += cl(o.lunge || 0, 0, 1) * 0.16;                  // a punch steps the whole body a little toward the opponent
+    var legW = o.legs ? cl(o.legW || 0, 0, 1) : 0, LD = null;
+    if (legW > 0.01 && fall === 0) {                               // tracked legs: the thighs and shins follow the camera; the hips drop to keep the feet on the floor, rise in a jump, and step sideways
+      var iLU = [rig.idx.RightUpLeg, rig.idx.LeftUpLeg], iLL = [rig.idx.RightLeg, rig.idx.LeftLeg], iLF = [rig.idx.RightFoot, rig.idx.LeftFoot];
+      if (iLU[0] != null && iLU[1] != null && iLL[0] != null && iLL[1] != null && iLF[0] != null && iLF[1] != null) {
+        LD = []; var DOWN = [0, -1, 0], dropMin = 9, sd2;
+        for (sd2 = 0; sd2 < 2; sd2++) {
+          var nm2 = (mir > 0 ? sd2 === 0 : sd2 === 1) ? 0 : 1, lg = o.legs[sd2 === 0 ? 'R' : 'L'], LT = vlen(B[iLL[nm2]].t), LS = vlen(B[iLF[nm2]].t);          // tracked R/L to the model's own right/left leg, like the arms
+          var kl = Math.min(1, Math.hypot(lg.kx, lg.ky)), kk = kl > 0.001 ? Math.min(1, 1 / Math.hypot(lg.kx, lg.ky)) : 1, kxn = lg.kx * Math.min(1, kk), kyn = lg.ky * Math.min(1, kk);
+          kyn = Math.max(kyn, -0.2); var kz = Math.sqrt(Math.max(0, 1 - kxn * kxn - kyn * kyn));
+          var t1 = vnorm(vadd(vadd(vmul(RIGHT, kxn), vmul(UP, -kyn)), vmul(FWD, kz)));
+          var t2;
+          if (lg.va) { var sl2 = Math.hypot(lg.ax, lg.ay), sk = sl2 > 1 ? 1 / sl2 : 1, axn = lg.ax * sk, ayn = Math.max(lg.ay * sk, -0.1), az = Math.sqrt(Math.max(0, 1 - axn * axn - ayn * ayn)); t2 = vnorm(vadd(vadd(vmul(RIGHT, axn), vmul(UP, -ayn)), vmul(FWD, -az * 0.8))); }
+          else t2 = vnorm(vadd(vmul(t1, 0.4), vmul(DOWN, 0.6)));                      // ankle out of the picture: the shin continues the thigh, leaning toward vertical
+          LD.push({ iu: iLU[nm2], il: iLL[nm2], ifoot: iLF[nm2], t1: t1, t2: t2 }); dropMin = Math.min(dropMin, (LT + LS) - (LT * -t1[1] + LS * -t2[1]));
+        }
+        rig.hips[1] -= Math.min(0.62, Math.max(0, dropMin)) * legW;      /* the leg that reaches furthest down stays on the floor */ rig.hips[1] += cl(o.hop || 0, 0, 1) * 0.32 * legW;
+        rig.hips[0] += RIGHT[0] * cl(o.walk || 0, -1, 1) * legW;
+      }
+    }
     rig.fk(0);
     var s;
     for (s = 0; s < 3; s++) {
@@ -2109,7 +2152,9 @@ var KRig = (function () {
     }
     addWorldRot(rig, iNeck, qmul(qaxis([0, 0, 1], -leanW * 0.45 - roll * 0.5 + cl(o.head || 0, -0.6, 0.6) * 0.5 * mir), qaxis([1, 0, 0], -duck * 0.2 + cl(o.tired || 0, 0, 1) * 0.22)));   // tired: the head hangs a little
     rig.fk(iNeck);
-    if (duck > 0.02 && fall === 0) { ['Left', 'Right'].forEach(function (sd) { var iu = rig.idx[sd + 'UpLeg'], il = rig.idx[sd + 'Leg']; if (iu == null || il == null) return; addWorldRot(rig, iu, qaxis([1, 0, 0], -duck * 0.55)); rig.fk(iu); addWorldRot(rig, il, qaxis([1, 0, 0], duck * 0.95)); rig.fk(il); }); }
+    var dk = duck * (1 - legW);
+    if (dk > 0.02 && fall === 0) { ['Left', 'Right'].forEach(function (sd) { var iu = rig.idx[sd + 'UpLeg'], il = rig.idx[sd + 'Leg']; if (iu == null || il == null) return; addWorldRot(rig, iu, qaxis([1, 0, 0], -dk * 0.55)); rig.fk(iu); addWorldRot(rig, il, qaxis([1, 0, 0], dk * 0.95)); rig.fk(il); }); }
+    if (LD) { LD.forEach(function (L2) { aim(rig, L2.iu, L2.il, L2.t1, legW); rig.fk(L2.iu); aim(rig, L2.il, L2.ifoot, L2.t2, legW); rig.fk(L2.il); }); }
     if (fall > 0) {                                  // knocked down: the thighs swing forward and the shins fold back (a seated collapse)
       ['Left', 'Right'].forEach(function (sd) { var iu = rig.idx[sd + 'UpLeg'], il = rig.idx[sd + 'Leg']; if (iu == null || il == null) return; addWorldRot(rig, iu, qaxis([1, 0, 0], -fall * 1.45)); rig.fk(iu); addWorldRot(rig, il, qaxis([1, 0, 0], fall * 1.6)); rig.fk(il); });
     }
@@ -2379,7 +2424,7 @@ function punchBody(o, time, st) {
   o.yaw = clamp(yaw, -1, 1); o.lunge = lunge; o.dip = dip;
 }
 function k3Opts(G, time) {
-  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: 0, leanK: 0.72 };      // the feet stay planted: only the upper body leans (no sliding of the whole fighter)
+  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: 0, leanK: 0.72, legs: p.leg, legW: p.legW, walk: p.walk, hop: p.hop };      // the feet stay planted: only the upper body leans (no sliding of the whole fighter)
   if (p.punch && p.punch !== K3.lastPunch) { K3.lastPunch = p.punch; K3.jab = { side: p.punch.side, t0: time, kind: p.punch.type }; K3.boost[p.punch.side] = time; K3.kind[p.punch.side] = p.punch.type || 'jab'; }
   if (!p.punch) K3.lastPunch = null;
   if (p.hurt > K3.lastHurt + 0.2) K3.hit = { t0: time };
@@ -2554,7 +2599,8 @@ function createGame(mode) {
     vis: null, lostT: 0, paused: false, dbg: null,
     p: { punch: null, q: [], x: 0, gx: 0, duck: 0, roll: 0, head: 0, anim: null, leanZ: 0, wasBlock: false, block: 0, blocking: false, hurt: 0, happy: 0,
          arm: { R: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0, wrx: 0.08, wry: -0.18, erx: 0.18, ery: 0.62 }, L: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0, wrx: -0.08, wry: -0.18, erx: -0.18, ery: 0.62 } },
-         tracked: { R: false, L: false }, armW: { R: 0, L: 0 } },
+         tracked: { R: false, L: false }, armW: { R: 0, L: 0 },
+         leg: { R: { kx: 0, ky: 1, ax: 0, ay: 1, va: 0 }, L: { kx: 0, ky: 1, ax: 0, ay: 1, va: 0 } }, legW: 0, walk: 0, hop: 0 },
     a: { state: 'idle', stateT: 0, timer: 2.2, side: 'right', hurt: 0, hurtDir: 1, hurtId: 0, happy: 0, guardCool: 0, reactCool: 0, struck: false, counter: false, slipDir: 1, slipDuck: 0,
          dodgedRecover: false, lastGlove: null, atk: null, locked: false, trackX: 0 },
     cam: 0, counterT: 0, offTurn: 0,
@@ -2877,6 +2923,9 @@ function stepGame(G, dt, input, fx) {
     if (t) { a.wrx += (t.wrx - a.wrx) * k30; a.wry += (t.wry - a.wry) * k30; a.erx += (t.erx - a.erx) * k30; a.ery += (t.ery - a.ery) * k30;
       if (t.z1 != null && t.z2 != null) { a.z1 = a.z1 == null ? t.z1 : a.z1 + (t.z1 - a.z1) * k30; a.z2 = a.z2 == null ? t.z2 : a.z2 + (t.z2 - a.z2) * k30; } else { a.z1 = null; a.z2 = null; } }
   });
+  { var lw = ub.legs ? 1 : 0; p.legW += (lw - p.legW) * Math.min(1, dt * 5);                                  // legs: followed only while the camera really sees them
+    if (ub.legs) ['R', 'L'].forEach(function (s2) { var a2 = p.leg[s2], t2 = ub.legs[s2]; a2.kx += (t2.kx - a2.kx) * k20; a2.ky += (t2.ky - a2.ky) * k20; a2.ax += (t2.ax - a2.ax) * k20; a2.ay += (t2.ay - a2.ay) * k20; a2.va = t2.va; });
+    p.walk += clamp((clamp((ub.walk || 0) * 0.5, -0.9, 0.9) - p.walk) * (1 - Math.exp(-dt * 8)), -2.5 * dt, 2.5 * dt);       /* eased, speed-limited to 2.5 m/s */ p.hop += ((ub.hop || 0) - p.hop) * (1 - Math.exp(-dt * 14)); if (!ub.legs) p.walk *= Math.exp(-dt * 3); }
   G.vis = ub.vis;
   if (ub.vis && !ub.vis.shoulders) G.lostT += dt; else G.lostT = 0;
   G.paused = G.lostT > 0.8;                  // body lost: the clock and the AI stop instead of pretending
@@ -4207,6 +4256,7 @@ function SettingsScreen(props) {
         bt('play', 'MOVEMENT CHECK', props.onMovement), bt('glove', 'PUNCH TEST', props.onPunchTest),
         bt('dumb', 'FIGHT SETUP', props.onFightCal), bt('cam', 'CAMERA: ' + (props.camPref === 'environment' ? 'REAR (TV)' : 'FRONT'), function () { props.onCamPref(props.camPref === 'environment' ? 'auto' : 'environment'); }),
         bt('glove', SETTINGS.hard ? 'DIFFICULTY: HARD' : 'DIFFICULTY: EASY', function () { setS('hard', !SETTINGS.hard); }),
+        bt('people', 'BODY: ' + STANCE_LABEL[SETTINGS.stance], function () { setS('stance', STANCE_NEXT[SETTINGS.stance]); }),
         bt('people', 'LANGUAGE: ' + LANGNAME[LANG.v], props.onLang, 'wide'),
         bt('play', 'HOW TO PLAY', props.onHow), bt('cam', 'CAMERA OFF', props.onCamOff)),
       h('div', { className: 'setl-back' }, h(FgBtn, { cls: 'gold', icon: 'back', label: 'BACK', onClick: props.onBack })));
@@ -4219,7 +4269,7 @@ function SettingsScreen(props) {
     h('div', { className: 'spacer' }),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onMovement }, 'MOVEMENT CHECK'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onPunchTest }, 'PUNCH TEST')),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onFightCal }, 'FIGHT SETUP'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: function () { props.onCamPref(props.camPref === 'environment' ? 'auto' : 'environment'); } }, 'CAMERA: ' + (props.camPref === 'environment' ? 'REAR (TV)' : 'FRONT'))),
-    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: function () { setS('hard', !SETTINGS.hard); } }, SETTINGS.hard ? 'DIFFICULTY: HARD' : 'DIFFICULTY: EASY')),
+    h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: function () { setS('hard', !SETTINGS.hard); } }, SETTINGS.hard ? 'DIFFICULTY: HARD' : 'DIFFICULTY: EASY'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: function () { setS('stance', STANCE_NEXT[SETTINGS.stance]); } }, 'BODY: ' + STANCE_LABEL[SETTINGS.stance])),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onLang }, 'LANGUAGE: ' + LANGNAME[LANG.v]), h('span', { style: { display: 'none' } })),
     h('div', { className: 'row' }, h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onHow }, 'HOW TO PLAY'), h('button', { className: 'btn ghost grow', 'data-hand': '1', onClick: props.onCamOff }, 'CAMERA OFF')),
     h('div', { className: 'row' }, h('span', { style: { display: 'none' } }), h('button', { className: 'btn gold grow', 'data-hand': '1', onClick: props.onBack }, 'BACK')));
