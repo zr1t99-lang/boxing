@@ -1261,7 +1261,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-var APP_BUILD = 'v49';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
+var APP_BUILD = 'v50';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { auto: 'AUTO', stand: 'STANDING', sit: 'SITTING' }, STANCE_NEXT = { auto: 'stand', stand: 'sit', sit: 'auto' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -1482,12 +1482,12 @@ GestureEngine.prototype.update = function (raw, vw, vh, t, world) {
     o.Z = F[2].f(q.z, dt) * vw;
     o.v = q.visibility == null ? 1 : q.visibility;
   }
-  var WJ = [11, 12, 13, 14, 15, 16], wi, wq, wo, WF;                  // metric 3D landmarks (world space): real depth for straight punches
+  var WJ = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28], wi, wq, wo, WF;                  // metric 3D landmarks (world space): real depth for straight punches
   this.hasW = !!(world && world.length >= 17);
   if (this.hasW) {
     var wl = this.wl || (this.wl = []), wfl = this.wflt || (this.wflt = {});
     for (wi = 0; wi < WJ.length; wi++) {
-      var wj = WJ[wi]; wq = world[wj]; WF = wfl[wj] || (wfl[wj] = [new OneEuro(3, 12), new OneEuro(3, 12), new OneEuro(2, 8)]); wo = wl[wj] || (wl[wj] = {});
+      var wj = WJ[wi]; wq = world[wj]; WF = wfl[wj] || (wfl[wj] = wj >= 23 ? [new OneEuro(1.1, 4), new OneEuro(1.1, 4), new OneEuro(1.1, 4)] : [new OneEuro(3, 12), new OneEuro(3, 12), new OneEuro(2, 8)]); wo = wl[wj] || (wl[wj] = {});
       wo.x = WF[0].f(wq.x, dt); wo.y = WF[1].f(wq.y, dt); wo.z = WF[2].f(wq.z, dt);
     }
   }
@@ -1549,10 +1549,10 @@ GestureEngine.prototype.update = function (raw, vw, vh, t, world) {
   }
   if (stance === 'sit') fbSeen = false;
   if (fbSeen) { this.fbOn = (this.fbOn || 0) + 1; this.fbOff = 0; } else { this.fbOff = (this.fbOff || 0) + 1; this.fbOn = 0; }
-  if (f.bodyMode !== 'full' && this.fbOn >= 24) { f.bodyMode = 'full'; this.baseHipY = null; this.baseHipX = null; this.baseTh = 0; this.baseSh = 0; }            // about 0.8 s of steady legs
+  if (f.bodyMode !== 'full' && this.fbOn >= 24) { f.bodyMode = 'full'; this.baseHipY = null; this.baseHipX = null; this.baseTh = 0; this.baseSh = 0; this.baseSw = null; this.baseAnkR = null; this.baseAnkL = null; }            // about 0.8 s of steady legs
   else if (f.bodyMode === 'full' && this.fbOff >= 18) f.bodyMode = 'upper';                            // about 0.6 s without them
   else if (!f.bodyMode) f.bodyMode = 'upper';
-  f.leanVis = f.lean; f.legs = null; f.hop = 0;
+  f.leanVis = f.lean; f.legs = null; f.hop = 0; f.hipDrop = 0; f.depth = 0;
   if (f.bodyMode === 'full' && fbSeen) {
     var hipY = (HL.Y + HR.Y) / 2, hipX = (HL.X + HR.X) / 2, thigh = Math.max(sw * 0.6, (Math.hypot(KL.X - HL.X, KL.Y - HL.Y) + Math.hypot(KR.X - HR.X, KR.Y - HR.Y)) / 2);
     if (this.baseHipY == null) this.baseHipY = hipY; else if (Math.abs(hipY - this.baseHipY) / thigh < 0.04) this.baseHipY += (hipY - this.baseHipY) * 0.02;
@@ -1563,14 +1563,26 @@ GestureEngine.prototype.update = function (raw, vw, vh, t, world) {
     var ddx = (hipX - this.baseHipX) / sw, rr = Math.abs(ddx) < 0.04 ? 0.01 : (this.steadyT > 2 ? 0.02 : 0); this.baseHipX += (hipX - this.baseHipX) * rr;
     f.hipDx = ddx;                                                                                         // the hips walked sideways: the fighter steps with you
     f.leanVis = CFG.dodge.head * headRel + CFG.dodge.torso * (shDx - ddx);                                // the visible upper-body lean is only what the shoulders did on top of the hips
-    var one = function (H, K, A) {                                                                         // thigh and shin as unit-less vectors (1 = the standing bone length), image y down
-      var tl = Math.hypot(K.X - H.X, K.Y - H.Y), o = { kx: 0, ky: 1, ax: 0, ay: 1, va: 0 };
+    var wl3 = this.hasW ? this.wl : null;
+    var wv = function (ja, jb) {                                                                         // metric 3D direction between two landmarks, in the player's frame: x to his right, y down, z toward the camera (= toward the opponent)
+      var pa = wl3 && wl3[ja], pb = wl3 && wl3[jb]; if (!pa || !pb || pa.x === undefined || pb.x === undefined) return null;
+      var x = -(pb.x - pa.x), y = pb.y - pa.y, z = -(pb.z - pa.z), l = Math.hypot(x, y, z); return l < 0.05 ? null : [x / l, y / l, z / l];
+    };
+    var one = function (H, K, A, jH, jK, jA, bk) {                                                         // thigh and shin as unit-less vectors (1 = the standing bone length), image y down
+      var tl = Math.hypot(K.X - H.X, K.Y - H.Y), o = { kx: 0, ky: 1, ax: 0, ay: 1, va: 0, lift: 0, t: null, s: null };
       this.baseTh = Math.max((this.baseTh || 0) * 0.9998, tl, sw * 0.8); var tn = Math.min(this.baseTh, sw * 2.4);
-      o.kx = (K.X - H.X) / tn; o.ky = (K.Y - H.Y) / tn;
-      if (A && seen(A) && A.v > 0.5) { var sl = Math.hypot(A.X - K.X, A.Y - K.Y); this.baseSh = Math.max((this.baseSh || 0) * 0.9998, sl, sw * 0.7); var sn = Math.min(this.baseSh, sw * 2.4); o.ax = (A.X - K.X) / sn; o.ay = (A.Y - K.Y) / sn; o.va = 1; }
+      o.kx = (K.X - H.X) / tn; o.ky = (K.Y - H.Y) / tn; o.t = wv(jH, jK);
+      if (A && seen(A) && A.v > 0.5) {
+        var sl = Math.hypot(A.X - K.X, A.Y - K.Y); this.baseSh = Math.max((this.baseSh || 0) * 0.9998, sl, sw * 0.7); var sn = Math.min(this.baseSh, sw * 2.4); o.ax = (A.X - K.X) / sn; o.ay = (A.Y - K.Y) / sn; o.va = 1; o.s = wv(jK, jA);
+        var bY = this[bk]; if (bY == null) bY = A.Y; else bY += (A.Y > bY ? 0.3 : 0.003) * (A.Y - bY); this[bk] = bY;           // the floor level of this foot, learned while it stands (drifts up very slowly)
+        o.lift = clamp((bY - A.Y) / (tn * 0.45), 0, 1);                                                      // how far the ankle has left the floor in the picture: a step or a kick
+      }
       return o;
     };
-    f.legs = { R: one.call(this, HR, KR, AR), L: one.call(this, HL, KL, AL) };
+    f.legs = { R: one.call(this, HR, KR, AR, 24, 26, 28, 'baseAnkR'), L: one.call(this, HL, KL, AL, 23, 25, 27, 'baseAnkL') };
+    f.hipDrop = (hipY - this.baseHipY) / thigh;                                                           // hips lower (+) or higher (-) than standing, in thigh lengths: a squat or a jump
+    if (this.baseSw == null) this.baseSw = sw; var dsw = sw / this.baseSw - 1, rs = Math.abs(dsw) < 0.03 ? 0.01 : (this.steadyT > 2 ? 0.02 : 0); this.baseSw += (sw - this.baseSw) * rs;
+    f.depth = clamp(dsw, -0.4, 0.4);                                                                       // the player stepped toward (+) or away from (-) the camera: the fighter steps forward or back
   } else { f.squat = 0; f.hipDx = 0; }
 
   // quiet re-centring: tiny offsets are absorbed at once, a larger offset only after the head has been still for 2 s
@@ -1690,7 +1702,7 @@ Tracker.prototype.getUpper = function () {
     roll: tracking ? f.roll : 0,
     head: tracking ? f.head : 0, dodge: tracking ? f.dodge : null,
     R: arm(e.arms.R, 1), L: arm(e.arms.L, -1),
-    legs: tracking && f.bodyMode === 'full' ? f.legs : null, walk: tracking && f.bodyMode === 'full' ? f.hipDx : 0, hop: tracking && f.bodyMode === 'full' ? f.hop : 0,
+    legs: tracking && f.bodyMode === 'full' ? f.legs : null, walk: tracking && f.bodyMode === 'full' ? f.hipDx : 0, hop: tracking && f.bodyMode === 'full' ? f.hop : 0, hipDrop: tracking && f.bodyMode === 'full' ? f.hipDrop : 0, depth: tracking && f.bodyMode === 'full' ? f.depth : 0,
     vis: { ls: f.visLS, rs: f.visRS, lw: f.visLW, rw: f.visRW, shoulders: f.visLS && f.visRS, all: f.visLS && f.visRS && f.visLW && f.visRW }
   };
 };
@@ -2058,6 +2070,7 @@ var KRig = (function () {
     for (i = 0; i < n; i++) { rig.q.push(data.ref.q[i].slice()); rig.wq.push([0, 0, 0, 1]); rig.wp.push([0, 0, 0]); }
     rig.pose = pose;
     rig.fk = fk;
+    fk.call(rig, 0); rig.rest = rig.wp.map(function (q) { return q.slice(); });          // the neutral stance: where the planted feet are
     return rig;
   }
 
@@ -2125,22 +2138,35 @@ var KRig = (function () {
     rig.hips[1] -= duck * 0.2 * (1 - (o.legs ? cl(o.legW || 0, 0, 1) : 0)) + cl(o.dip || 0, 0, 1) * 0.07 + fall * 0.40; rig.hips[2] -= fall * 0.42;
     rig.hips[2] += cl(o.lunge || 0, 0, 1) * 0.16;                  // a punch steps the whole body a little toward the opponent
     var legW = o.legs ? cl(o.legW || 0, 0, 1) : 0, LD = null;
-    if (legW > 0.01 && fall === 0) {                               // tracked legs: the thighs and shins follow the camera; the hips drop to keep the feet on the floor, rise in a jump, and step sideways
+    if (legW > 0.01 && fall === 0 && rig.rest) {                   // tracked legs: the hips follow the player's hips; the feet stay planted on the floor (two-bone IK) unless a foot really leaves it
       var iLU = [rig.idx.RightUpLeg, rig.idx.LeftUpLeg], iLL = [rig.idx.RightLeg, rig.idx.LeftLeg], iLF = [rig.idx.RightFoot, rig.idx.LeftFoot];
       if (iLU[0] != null && iLU[1] != null && iLL[0] != null && iLL[1] != null && iLF[0] != null && iLF[1] != null) {
-        LD = []; var DOWN = [0, -1, 0], dropMin = 9, sd2;
+        var LT0 = vlen(B[iLL[0]].t), LS0 = vlen(B[iLF[0]].t), hd = cl(o.hipDrop || 0, -1.3, 1.5) * LT0;      // thigh lengths -> metres
+        hd = cl(hd, -0.5, 0.72 * (LT0 + LS0));
+        rig.hips[1] -= hd * legW; rig.hips[0] += RIGHT[0] * cl(o.walk || 0, -1, 1) * legW; rig.hips[2] += cl(o.zwalk || 0, -0.6, 0.7) * legW;
+        rig.fk(0);
+        LD = []; var DOWN = [0, -1, 0], sd2;
         for (sd2 = 0; sd2 < 2; sd2++) {
-          var nm2 = (mir > 0 ? sd2 === 0 : sd2 === 1) ? 0 : 1, lg = o.legs[sd2 === 0 ? 'R' : 'L'], LT = vlen(B[iLL[nm2]].t), LS = vlen(B[iLF[nm2]].t);          // tracked R/L to the model's own right/left leg, like the arms
-          var kl = Math.min(1, Math.hypot(lg.kx, lg.ky)), kk = kl > 0.001 ? Math.min(1, 1 / Math.hypot(lg.kx, lg.ky)) : 1, kxn = lg.kx * Math.min(1, kk), kyn = lg.ky * Math.min(1, kk);
-          kyn = Math.max(kyn, -0.2); var kz = Math.sqrt(Math.max(0, 1 - kxn * kxn - kyn * kyn));
-          var t1 = vnorm(vadd(vadd(vmul(RIGHT, kxn), vmul(UP, -kyn)), vmul(FWD, kz)));
-          var t2;
-          if (lg.va) { var sl2 = Math.hypot(lg.ax, lg.ay), sk = sl2 > 1 ? 1 / sl2 : 1, axn = lg.ax * sk, ayn = Math.max(lg.ay * sk, -0.1), az = Math.sqrt(Math.max(0, 1 - axn * axn - ayn * ayn)); t2 = vnorm(vadd(vadd(vmul(RIGHT, axn), vmul(UP, -ayn)), vmul(FWD, -az * 0.8))); }
-          else t2 = vnorm(vadd(vmul(t1, 0.4), vmul(DOWN, 0.6)));                      // ankle out of the picture: the shin continues the thigh, leaning toward vertical
-          LD.push({ iu: iLU[nm2], il: iLL[nm2], ifoot: iLF[nm2], t1: t1, t2: t2 }); dropMin = Math.min(dropMin, (LT + LS) - (LT * -t1[1] + LS * -t2[1]));
+          var nm2 = (mir > 0 ? sd2 === 0 : sd2 === 1) ? 0 : 1, lg = o.legs[sd2 === 0 ? 'R' : 'L'], LT = vlen(B[iLL[nm2]].t), LS = vlen(B[iLF[nm2]].t), gsd = sd2 === 0 ? 1 : -1;
+          var H = rig.wp[iLU[nm2]], R0 = rig.rest[iLF[nm2]], gl = (o.gaitA || 0) * 0.11 * Math.max(0, Math.sin((o.gaitP || 0) + (sd2 ? Math.PI : 0)));
+          var T = [R0[0] + RIGHT[0] * cl(o.walk || 0, -1, 1) * legW, R0[1] + gl + Math.max(0, -hd) * 0.92 * legW, R0[2] + cl(o.zwalk || 0, -0.6, 0.7) * legW + gl * 0.5];      // planted foot: under the hips, on the floor (rises with a jump, lifts a little with each step)
+          var ax = vsub(T, H), d = Math.max(1e-4, vlen(ax)), dd = cl(d, Math.abs(LT - LS) + 1e-3, LT + LS - 1e-3), an = vmul(ax, 1 / d);
+          var xk = (LT * LT - LS * LS + dd * dd) / (2 * dd), hk = Math.sqrt(Math.max(0, LT * LT - xk * xk));
+          var pole = vadd(FWD, vmul(RIGHT, gsd * 0.18)), pp = vsub(pole, vmul(an, vdot(pole, an))); pp = vlen(pp) < 1e-4 ? FWD : vnorm(pp);
+          var knee = vadd(vadd(H, vmul(an, xk)), vmul(pp, hk)), Tc = vadd(H, vmul(an, dd));
+          var i1 = vnorm(vsub(knee, H)), i2 = vnorm(vsub(Tc, knee));
+          var lw = lg.va ? cl(((lg.lift || 0) - 0.15) / 0.5, 0, 1) : 0;       // a foot that has left the floor (step, kick) follows the camera; everything else is planted
+          lw = lw * lw * (3 - 2 * lw);
+          if (lw > 0.001) {
+            var t1, t2;
+            if (lg.t) t1 = vnorm(vadd(vadd(vmul(RIGHT, lg.t[0]), vmul(UP, -lg.t[1])), vmul(FWD, lg.t[2])));
+            else { var kl = Math.hypot(lg.kx, lg.ky), kk = kl > 1 ? 1 / kl : 1, kxn = lg.kx * kk, kyn = Math.max(lg.ky * kk, -0.2), kz = Math.sqrt(Math.max(0, 1 - kxn * kxn - kyn * kyn)); t1 = vnorm(vadd(vadd(vmul(RIGHT, kxn), vmul(UP, -kyn)), vmul(FWD, kz))); }
+            if (lg.s) t2 = vnorm(vadd(vadd(vmul(RIGHT, lg.s[0]), vmul(UP, -lg.s[1])), vmul(FWD, lg.s[2])));
+            else { var sl2 = Math.hypot(lg.ax, lg.ay), sk = sl2 > 1 ? 1 / sl2 : 1, axn = lg.ax * sk, ayn = Math.max(lg.ay * sk, -0.1), az = Math.sqrt(Math.max(0, 1 - axn * axn - ayn * ayn)); t2 = vnorm(vadd(vadd(vmul(RIGHT, axn), vmul(UP, -ayn)), vmul(FWD, az * 0.8))); }
+            i1 = vnorm(vadd(vmul(i1, 1 - lw), vmul(t1, lw))); i2 = vnorm(vadd(vmul(i2, 1 - lw), vmul(t2, lw)));
+          }
+          LD.push({ iu: iLU[nm2], il: iLL[nm2], ifoot: iLF[nm2], t1: i1, t2: i2 });
         }
-        rig.hips[1] -= Math.min(0.62, Math.max(0, dropMin)) * legW;      /* the leg that reaches furthest down stays on the floor */ rig.hips[1] += cl(o.hop || 0, 0, 1) * 0.32 * legW;
-        rig.hips[0] += RIGHT[0] * cl(o.walk || 0, -1, 1) * legW;
       }
     }
     rig.fk(0);
@@ -2425,7 +2451,7 @@ function punchBody(o, time, st) {
   o.yaw = clamp(yaw, -1, 1); o.lunge = lunge; o.dip = dip;
 }
 function k3Opts(G, time) {
-  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: 0, leanK: 0.72, legs: p.leg, legW: p.legW, walk: p.walk, hop: p.hop };      // the feet stay planted: only the upper body leans (no sliding of the whole fighter)
+  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: 0, leanK: 0.72, legs: p.leg, legW: p.legW, walk: p.walk, zwalk: p.zw, hipDrop: p.hd, gaitA: p.gaitA, gaitP: p.gaitP };      // the feet stay planted: only the upper body leans (no sliding of the whole fighter)
   if (p.punch && p.punch !== K3.lastPunch) { K3.lastPunch = p.punch; K3.jab = { side: p.punch.side, t0: time, kind: p.punch.type }; K3.boost[p.punch.side] = time; K3.kind[p.punch.side] = p.punch.type || 'jab'; }
   if (!p.punch) K3.lastPunch = null;
   if (p.hurt > K3.lastHurt + 0.2) K3.hit = { t0: time };
@@ -2601,7 +2627,7 @@ function createGame(mode) {
     p: { punch: null, q: [], x: 0, gx: 0, duck: 0, roll: 0, head: 0, anim: null, leanZ: 0, wasBlock: false, block: 0, blocking: false, hurt: 0, happy: 0,
          arm: { R: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0, wrx: 0.08, wry: -0.18, erx: 0.18, ery: 0.62 }, L: { out: 0, up: -0.5, eout: 0.1, eup: 0.55, ext: 0, wrx: -0.08, wry: -0.18, erx: -0.18, ery: 0.62 } },
          tracked: { R: false, L: false }, armW: { R: 0, L: 0 },
-         leg: { R: { kx: 0, ky: 1, ax: 0, ay: 1, va: 0 }, L: { kx: 0, ky: 1, ax: 0, ay: 1, va: 0 } }, legW: 0, walk: 0, hop: 0 },
+         leg: { R: { kx: 0, ky: 1, ax: 0, ay: 1, va: 0, lift: 0, t: null, s: null }, L: { kx: 0, ky: 1, ax: 0, ay: 1, va: 0, lift: 0, t: null, s: null } }, legW: 0, walk: 0, hop: 0, hd: 0, zw: 0, gaitA: 0, gaitP: 0 },
     a: { state: 'idle', stateT: 0, timer: 2.2, side: 'right', hurt: 0, hurtDir: 1, hurtId: 0, happy: 0, guardCool: 0, reactCool: 0, struck: false, counter: false, slipDir: 1, slipDuck: 0,
          dodgedRecover: false, lastGlove: null, atk: null, locked: false, trackX: 0 },
     cam: 0, counterT: 0, offTurn: 0,
@@ -2925,8 +2951,16 @@ function stepGame(G, dt, input, fx) {
       if (t.z1 != null && t.z2 != null) { a.z1 = a.z1 == null ? t.z1 : a.z1 + (t.z1 - a.z1) * k30; a.z2 = a.z2 == null ? t.z2 : a.z2 + (t.z2 - a.z2) * k30; } else { a.z1 = null; a.z2 = null; } }
   });
   { var lw = ub.legs ? 1 : 0; p.legW += (lw - p.legW) * Math.min(1, dt * 5);                                  // legs: followed only while the camera really sees them
-    if (ub.legs) ['R', 'L'].forEach(function (s2) { var a2 = p.leg[s2], t2 = ub.legs[s2]; a2.kx += (t2.kx - a2.kx) * k20; a2.ky += (t2.ky - a2.ky) * k20; a2.ax += (t2.ax - a2.ax) * k20; a2.ay += (t2.ay - a2.ay) * k20; a2.va = t2.va; });
-    p.walk += clamp((clamp((ub.walk || 0) * 0.5, -0.9, 0.9) - p.walk) * (1 - Math.exp(-dt * 8)), -2.5 * dt, 2.5 * dt);       /* eased, speed-limited to 2.5 m/s */ p.hop += ((ub.hop || 0) - p.hop) * (1 - Math.exp(-dt * 14)); if (!ub.legs) p.walk *= Math.exp(-dt * 3); }
+    var kL = Math.min(1, dt * 10), vec = function (cur, tg) { if (!tg) return null; if (!cur) return tg.slice(); return [cur[0] + (tg[0] - cur[0]) * kL, cur[1] + (tg[1] - cur[1]) * kL, cur[2] + (tg[2] - cur[2]) * kL]; };
+    if (ub.legs) ['R', 'L'].forEach(function (s2) { var a2 = p.leg[s2], t2 = ub.legs[s2]; a2.kx += (t2.kx - a2.kx) * kL; a2.ky += (t2.ky - a2.ky) * kL; a2.ax += (t2.ax - a2.ax) * kL; a2.ay += (t2.ay - a2.ay) * kL; a2.va = t2.va; a2.lift += ((t2.va ? t2.lift : 0) - a2.lift) * Math.min(1, dt * 12); a2.t = vec(a2.t, t2.t); a2.s = t2.va ? vec(a2.s, t2.s) : null; });
+    else ['R', 'L'].forEach(function (s2) { p.leg[s2].lift *= Math.exp(-dt * 8); });
+    var w0 = p.walk, z0 = p.zw;
+    p.walk += clamp((clamp((ub.walk || 0) * 0.5, -0.9, 0.9) - p.walk) * (1 - Math.exp(-dt * 8)), -2.5 * dt, 2.5 * dt);       /* eased, speed-limited to 2.5 m/s */
+    p.zw += clamp((clamp((ub.depth || 0) * 2.2, -0.5, 0.6) - p.zw) * (1 - Math.exp(-dt * 8)), -1.5 * dt, 1.5 * dt);          // stepping toward or away from the camera
+    p.hd += ((ub.hipDrop || 0) - p.hd) * (1 - Math.exp(-dt * 12));
+    if (!ub.legs) { p.walk *= Math.exp(-dt * 3); p.zw *= Math.exp(-dt * 3); p.hd *= Math.exp(-dt * 6); }
+    var spd = dt > 0 ? (Math.abs(p.walk - w0) + Math.abs(p.zw - z0)) / dt : 0;                                 // walking speed drives a small stepping motion of the feet
+    p.gaitA += (clamp(spd / 0.5, 0, 1) - p.gaitA) * Math.min(1, dt * 8); p.gaitP += dt * (7 + 5 * p.gaitA); }
   G.vis = ub.vis;
   if (ub.vis && !ub.vis.shoulders) G.lostT += dt; else G.lostT = 0;
   G.paused = G.lostT > 0.8;                  // body lost: the clock and the AI stop instead of pretending
