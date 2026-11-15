@@ -2091,7 +2091,7 @@ var KRig = (function () {
 
     // 2) live torso: lean, shoulder roll, duck (world-space increments spread over the spine)
     var iHips = rig.idx.Hips, iSp = [rig.idx.Spine, rig.idx.Spine1, rig.idx.Spine2], iNeck = rig.idx.Neck, iHead = rig.idx.Head;
-    var lean = cl(o.x || 0, -1.3, 1.3) * 0.52 * mir;     // about 30 degrees at full lean; rotation about +Z moves the head toward world -X
+    var lean = cl(o.x || 0, -1.3, 1.3) * (o.leanK || 0.52) * mir;     // about 30 degrees at full lean; rotation about +Z moves the head toward world -X
     var roll = cl(o.roll || 0, -0.5, 0.5) * mir;
     var duck = cl(o.duck || 0, 0, 1), idle = Math.sin((o.time || 0) * 1.9) * 0.012;
     var leanW = lean;
@@ -2173,7 +2173,8 @@ var VIEWS = {
   back:  { pos: [-0.5, 2.17, -3.23], tgt: [-0.05, 1.56, 0.59], fov: 45.2, mirror: false, label: 'BACK' },
   front: { pos: [0.0, 2.45, 3.9], tgt: [0, 1.8, 0], fov: 32, mirror: true, label: 'FRONT' }
 };
-var K3 = { zoom: 1, zoomT: 1, ZMAX: 2.2, status: 'idle', error: '', view: 'back', rig: null, bones: null, renderer: null, scene: null, camera: null, canvas: null, promise: null, dpr: 0,
+var ZOUT = { pos: [-0.5, 2.9, -5.5], tgt: [-0.05, 1.4, 0.59], fov: 37 };
+var K3 = { zoom: 1, zoomT: 1, ZMIN: 0.5, ZMAX: 2.2, zoomOn: false, status: 'idle', error: '', view: 'back', rig: null, bones: null, renderer: null, scene: null, camera: null, canvas: null, promise: null, dpr: 0,
            lastPunch: null, jab: null, hit: null, lastHurt: 0, boost: { R: -99, L: -99 }, kind: { R: 'jab', L: 'jab' },
            opp: null, oppStatus: 'idle', oppError: '' };
 /* ONE arena for every mode: a real 3D purple room (back wall with two light strips, darker side walls, pink-white ceiling with light bars,
@@ -2378,7 +2379,7 @@ function punchBody(o, time, st) {
   o.yaw = clamp(yaw, -1, 1); o.lunge = lunge; o.dip = dip;
 }
 function k3Opts(G, time) {
-  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: G.arc ? 0.65 : 0.25 };
+  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: 0, leanK: 0.72 };      // the feet stay planted: only the upper body leans (no sliding of the whole fighter)
   if (p.punch && p.punch !== K3.lastPunch) { K3.lastPunch = p.punch; K3.jab = { side: p.punch.side, t0: time, kind: p.punch.type }; K3.boost[p.punch.side] = time; K3.kind[p.punch.side] = p.punch.type || 'jab'; }
   if (!p.punch) K3.lastPunch = null;
   if (p.hurt > K3.lastHurt + 0.2) K3.hit = { t0: time };
@@ -2453,11 +2454,19 @@ K3.draw = function (ctx, G, time, noRoom) {
     var land = W > 480, kz = land ? LANDZ : 1, kx = land ? W / 2 - W / (2 * kz) : 0, ky = land ? LANDY0 : 0;
     var ck = K3.view === 'back' && !land ? 'backP' : K3.view;
     var fx = K3.follow || 0;
-    K3.zoom = (K3.zoom || 1) + ((K3.zoomT || 1) - (K3.zoom || 1)) * 0.25; if (Math.abs(K3.zoom - (K3.zoomT || 1)) < 0.002) K3.zoom = K3.zoomT || 1;      // pinch zoom: 1 = the full view (whole fighter and all warnings), higher = closer on the opponent
-    var zm = ck === 'front' ? 1 : K3.zoom, zt = Math.min(1, (zm - 1) / (K3.ZMAX - 1));
-    if (K3.camKey !== ck || K3.camFx !== fx || K3.camZ !== zm) { var VV = VIEWS[ck]; K3.camKey = ck; K3.camFx = fx; K3.camZ = zm; K3.camera.fov = 2 * Math.atan(Math.tan(VV.fov * Math.PI / 360) / zm) * 180 / Math.PI;
-      var fz = fx * (1 - zt), ty = VV.tgt[1] + (1.66 - VV.tgt[1]) * zt * 0.85, tz = VV.tgt[2] + (OPP.z - 0.35 - VV.tgt[2]) * zt * 0.85;
-      K3.camera.position.set(VV.pos[0] + fz, VV.pos[1] + (1.85 - VV.pos[1]) * zt * 0.5, VV.pos[2]); K3.camera.lookAt(VV.tgt[0] + fz + (OPP.x - VV.tgt[0]) * zt * 0.95, ty, tz); }          // portrait and landscape: same room, own framing
+    K3.zoom = (K3.zoom || 1) + ((K3.zoomT || 1) - (K3.zoom || 1)) * 0.25; if (Math.abs(K3.zoom - (K3.zoomT || 1)) < 0.002) K3.zoom = K3.zoomT || 1;      // pinch zoom (match only): ZMIN = the full view (both fighters, boots and ring), 1 = the close view, ZMAX = on the opponent
+    var zm = (ck === 'front' || !K3.zoomOn) ? 1 : K3.zoom, zt = Math.min(1, Math.max(0, (zm - 1) / (K3.ZMAX - 1))), zu = Math.min(1, Math.max(0, (1 - zm) / (1 - K3.ZMIN)));
+    if (K3.camKey !== ck || K3.camFx !== fx || K3.camZ !== zm) { var VV = VIEWS[ck]; K3.camKey = ck; K3.camFx = fx; K3.camZ = zm;
+      if (zu > 0) {                                                                   // zoom out: further back and higher, looking down a little (fitted to the approved full-view screenshot)
+        var OV = ZOUT, tf = Math.tan(VV.fov * Math.PI / 360), tf2 = Math.tan(OV.fov * Math.PI / 360) * (land ? 1.451 : 1);
+        K3.camera.fov = 2 * Math.atan(tf + (tf2 - tf) * zu) * 180 / Math.PI;
+        K3.camera.position.set(VV.pos[0] + fx + (OV.pos[0] - VV.pos[0]) * zu, VV.pos[1] + (OV.pos[1] - VV.pos[1]) * zu, VV.pos[2] + (OV.pos[2] - VV.pos[2]) * zu);
+        K3.camera.lookAt(VV.tgt[0] + fx + (OV.tgt[0] - VV.tgt[0]) * zu, VV.tgt[1] + (OV.tgt[1] - VV.tgt[1]) * zu, VV.tgt[2] + (OV.tgt[2] - VV.tgt[2]) * zu);
+      } else {
+        K3.camera.fov = 2 * Math.atan(Math.tan(VV.fov * Math.PI / 360) / zm) * 180 / Math.PI;
+        var fz = fx * (1 - zt), ty = VV.tgt[1] + (1.66 - VV.tgt[1]) * zt * 0.85, tz = VV.tgt[2] + (OPP.z - 0.35 - VV.tgt[2]) * zt * 0.85;
+        K3.camera.position.set(VV.pos[0] + fz, VV.pos[1] + (1.85 - VV.pos[1]) * zt * 0.5, VV.pos[2]); K3.camera.lookAt(VV.tgt[0] + fz + (OPP.x - VV.tgt[0]) * zt * 0.95, ty, tz);
+      } }
     if (K3.room) K3.room.visible = !noRoom;
     var tf = G && G.dbg && G.dbg.fps;                                            // the pose tracker shares the phone with this renderer: if it is starved, render the 3D scene at a lower resolution
     if (tf > 0) { if (tf < 14) K3.slowN = (K3.slowN || 0) + 1; else if (tf > 24) K3.slowN = Math.min(0, (K3.slowN || 0)) - 1; else K3.slowN = 0;
@@ -3670,7 +3679,7 @@ function drawScene(ctx, G, time, bg, hud) {
   if (W > 480) { ctx.scale(LANDZ, LANDZ); ctx.translate(-(W / 2 - W / (2 * LANDZ)), -LANDY0); }          // landscape: slightly closer camera
   var room3 = K3.status === 'ready' && !!K3.room;
   if (!room3) drawArena(ctx, bg, cam);                         // the 3D room fills the whole frame; the 2D street picture is only the fallback
-  ctx.save(); var zc = 1 + 0.03 * Math.abs(cam); ctx.translate(W / 2 - cam * W * 0.025, H / 2); ctx.scale(zc, zc); ctx.translate(-W / 2, -H / 2);          // dodge camera: the fighters follow the lean slightly
+  ctx.save(); if (room3) cam = 0; var zc = 1 + 0.03 * Math.abs(cam); ctx.translate(W / 2 - cam * W * 0.025, H / 2); ctx.scale(zc, zc); ctx.translate(-W / 2, -H / 2);          // dodge camera: the fighters follow the lean slightly
   ctx.save(); ctx.translate(STX, STY); ctx.scale(SS, SS);
   var opp3 = K3.status === 'ready' && K3.oppStatus === 'ready';
   if (!opp3) drawOpponent(ctx, G, time);                         // 2D opponent only while the cloned model is not available
@@ -4663,14 +4672,14 @@ function Match(props) {
     function onKey(e) { if (e.key === 'Escape' || e.key === 'q' || e.key === 'Q') finish(); }
     if (props.debug) window.addEventListener('keydown', onKey);
     props.input.drainPunches();
-    K3.zoomT = 1; K3.zoom = 1;                                                   // each match starts on the full view
+    K3.zoomOn = true; K3.zoomT = K3.ZMIN; K3.zoom = K3.ZMIN;                       // each match starts on the full view
     var pts = {}, pd0 = 0, pz0 = 1;
     function pn() { return Object.keys(pts).length; }
     function pdist() { var k = Object.keys(pts), a = pts[k[0]], b = pts[k[1]]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; }
     function pDown(e) { pts[e.pointerId] = { x: e.clientX, y: e.clientY }; if (pn() === 2) { pd0 = pdist(); pz0 = K3.zoomT || 1; } try { canvas.setPointerCapture(e.pointerId); } catch (x) { } }
-    function pMove(e) { if (!pts[e.pointerId]) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY }; if (pn() === 2) K3.zoomT = clamp(pz0 * pdist() / pd0, 1, K3.ZMAX); }      // two fingers: spread = zoom in, pinch = zoom out
+    function pMove(e) { if (!pts[e.pointerId]) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY }; if (pn() === 2) K3.zoomT = clamp(pz0 * pdist() / pd0, K3.ZMIN, K3.ZMAX); }      // two fingers: spread = zoom in, pinch = zoom out
     function pUp(e) { delete pts[e.pointerId]; if (pn() === 2) { pd0 = pdist(); pz0 = K3.zoomT || 1; } }
-    function onWheel(e) { e.preventDefault(); K3.zoomT = clamp((K3.zoomT || 1) * Math.exp(-e.deltaY * 0.002), 1, K3.ZMAX); }
+    function onWheel(e) { e.preventDefault(); K3.zoomT = clamp((K3.zoomT || 1) * Math.exp(-e.deltaY * 0.002), K3.ZMIN, K3.ZMAX); }
     canvas.addEventListener('pointerdown', pDown); canvas.addEventListener('pointermove', pMove); canvas.addEventListener('pointerup', pUp); canvas.addEventListener('pointercancel', pUp); canvas.addEventListener('wheel', onWheel, { passive: false });
     resetRef.current = function () { G = createGame(props.mode); props.input.drainPunches(); Sfx.ding(); };           // training reset: health, stats and the opponent start over
     // automatic neutral pose: re-capture shortly after the session starts, while the player is settled
@@ -4693,7 +4702,7 @@ function Match(props) {
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
-    return function () { dead = true; clearTimeout(neutralT); cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); canvas.removeEventListener('pointerdown', pDown); canvas.removeEventListener('pointermove', pMove); canvas.removeEventListener('pointerup', pUp); canvas.removeEventListener('pointercancel', pUp); canvas.removeEventListener('wheel', onWheel); K3.zoomT = 1; K3.zoom = 1; K3.camZ = 0; if (props.onPause) props.onPause(false); };
+    return function () { dead = true; clearTimeout(neutralT); cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); canvas.removeEventListener('pointerdown', pDown); canvas.removeEventListener('pointermove', pMove); canvas.removeEventListener('pointerup', pUp); canvas.removeEventListener('pointercancel', pUp); canvas.removeEventListener('wheel', onWheel); K3.zoomOn = false; K3.zoomT = 1; K3.zoom = 1; K3.camZ = 0; if (props.onPause) props.onPause(false); };
   }, []);
   function resume() { pausedRef.current = false; needDown.current = true; setPaused(false); if (props.onPause) props.onPause(false); props.input.drainPunches(); }
   var btn = function (label, fn, cls, pressed) { return h('button', { className: 'btn mb ' + (cls || ''), 'data-hand': '1', onClick: fn, 'aria-pressed': pressed }, label); };
