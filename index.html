@@ -2079,7 +2079,7 @@ var KRig = (function () {
     var roll = cl(o.roll || 0, -0.5, 0.5) * mir;
     var duck = cl(o.duck || 0, 0, 1), idle = Math.sin((o.time || 0) * 1.9) * 0.012;
     var leanW = lean;
-    rig.hips[0] += RIGHT[0] * (o.x || 0) * 0.25;                    // small lateral shift of the whole body
+    rig.hips[0] += RIGHT[0] * (o.x || 0) * (o.shift != null ? o.shift : 0.25);                    // small lateral shift of the whole body
     var fall = cl(o.fall || 0, 0, 1);
     rig.hips[1] -= duck * 0.2 + cl(o.dip || 0, 0, 1) * 0.07 + fall * 0.40; rig.hips[2] -= fall * 0.42;
     rig.hips[2] += cl(o.lunge || 0, 0, 1) * 0.16;                  // a punch steps the whole body a little toward the opponent
@@ -2146,8 +2146,8 @@ var KRig = (function () {
    ====================================================================== */
 /* Over-the-back camera, solved by projecting the model's head/hips/feet through this lens for the landscape window (the 1.45x zoomed middle band of the render): head top at about 8 percent, below the buttocks at about 93 percent, opponent ahead, right of centre. */
 var VIEWS = {
-  backP: { pos: [-0.8, 2.16, -3.43], tgt: [0.16, 1.22, 2.96], fov: 32, mirror: false, label: 'BACK' },
-  back:  { pos: [-0.6, 1.65, -2.9], tgt: [0.25, 1.2, 2.2], fov: 32, mirror: false, label: 'BACK' },
+  backP: { pos: [-0.5, 2.17, -3.23], tgt: [-0.05, 1.56, 0.59], fov: 32, mirror: false, label: 'BACK', follow: 0.8 },
+  back:  { pos: [-0.4, 1.7, -3.1], tgt: [0.3, 1.25, 2.25], fov: 32, mirror: false, label: 'BACK' },
   front: { pos: [0.0, 2.45, 3.9], tgt: [0, 1.8, 0], fov: 32, mirror: true, label: 'FRONT' }
 };
 var K3 = { status: 'idle', error: '', view: 'back', rig: null, bones: null, renderer: null, scene: null, camera: null, canvas: null, promise: null, dpr: 0,
@@ -2328,7 +2328,7 @@ K3.applyEm = function (rig) {                                           // trans
   E.bones[0].position.set(M.nHips[0] + rig.hips[0] - M.kHips[0], M.nHips[1] + rig.hips[1] - M.kHips[1], M.nHips[2] + rig.hips[2] - M.kHips[2]);
 };
 K3.setView = function (v) {
-  K3.view = VIEWS[v] && v !== 'backP' ? v : 'back'; K3.camKey = K3.view;
+  K3.view = VIEWS[v] && v !== 'backP' ? v : 'back'; K3.camKey = null;
   var V = VIEWS[K3.view];
   if (K3.camera) { K3.camera.fov = V.fov; K3.camera.position.set(V.pos[0], V.pos[1], V.pos[2]); K3.camera.lookAt(V.tgt[0], V.tgt[1], V.tgt[2]); K3.camera.updateProjectionMatrix(); }
 };
@@ -2355,7 +2355,7 @@ function punchBody(o, time, st) {
   o.yaw = clamp(yaw, -1, 1); o.lunge = lunge; o.dip = dip;
 }
 function k3Opts(G, time) {
-  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [] };
+  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: G.arc ? 0.65 : 0.25 };
   if (p.punch && p.punch !== K3.lastPunch) { K3.lastPunch = p.punch; K3.jab = { side: p.punch.side, t0: time, kind: p.punch.type }; K3.boost[p.punch.side] = time; K3.kind[p.punch.side] = p.punch.type || 'jab'; }
   if (!p.punch) K3.lastPunch = null;
   if (p.hurt > K3.lastHurt + 0.2) K3.hit = { t0: time };
@@ -2429,7 +2429,8 @@ K3.draw = function (ctx, G, time, noRoom) {
     var dpr = mbDpr();
     var land = W > 480, kz = land ? LANDZ : 1, kx = land ? W / 2 - W / (2 * kz) : 0, ky = land ? LANDY0 : 0;
     var ck = K3.view === 'back' && !land ? 'backP' : K3.view;
-    if (K3.camKey !== ck) { var VV = VIEWS[ck]; K3.camKey = ck; K3.camera.fov = VV.fov; K3.camera.position.set(VV.pos[0], VV.pos[1], VV.pos[2]); K3.camera.lookAt(VV.tgt[0], VV.tgt[1], VV.tgt[2]); }          // portrait and landscape: same room, own framing
+    var fx = (G && G.camX) || 0;
+    if (K3.camKey !== ck || K3.camFx !== fx) { var VV = VIEWS[ck]; K3.camKey = ck; K3.camFx = fx; K3.camera.fov = VV.fov; K3.camera.position.set(VV.pos[0] + fx, VV.pos[1], VV.pos[2]); K3.camera.lookAt(VV.tgt[0] + fx, VV.tgt[1], VV.tgt[2]); }          // portrait and landscape: same room, own framing
     if (K3.room) K3.room.visible = !noRoom;
     if (K3.dpr !== dpr || K3.fw !== W) { K3.dpr = dpr; K3.fw = W; K3.renderer.setSize(Math.round(W * dpr), Math.round(H * dpr), false); K3.camera.aspect = W / H; }
     if (land) K3.camera.setViewOffset(W, H, kx, ky, W / kz, H / kz); else if (K3.camera.view && K3.camera.view.enabled) K3.camera.clearViewOffset();      // landscape: render only the zoomed window, at full pixel density
@@ -2626,17 +2627,36 @@ function summarize(G) {
    ====================================================================== */
 var ARC = { N: 5, ATK: 5, HIT: 20 };
 /* Danger circles, in figure space. The circle IS the hit area: a hit lands when the player's body box touches it. */
+ARC.KM = 0.0061;          // metres of head travel per unit of lateral position (p.gx / p.x): a full dodge (130 to 170 units) moves the head about 0.8 to 1 m
+ARC.DUCK = 0.5;           // how far the tracked head must drop (0..1) to pass under a head-level punch
+/* Attack lanes in player space. tx is the lateral target (negative = the player's left), r the punch's half-width in the same units, hm the target height in metres.
+   head: true = head-level, so ducking clears it. The glove is drawn where the punch really goes (projected through the live camera); the hit is decided from the tracked body at impact. */
 ARC.ZONES = {
-  L: { cx: 150, cy: 560, r: 140, label: 'DODGE RIGHT', ptype: 'cross', type: 'straight' },       // covers the centre and the left: step right
-  R: { cx: 330, cy: 560, r: 140, label: 'DODGE LEFT',  ptype: 'cross', type: 'straight' },       // covers the centre and the right: step left
-  H: { cx: 240, cy: 415, r: 95,  label: 'DUCK',        ptype: 'hook',  type: 'hook' },           // head height: only ducking clears it
-  B: { cx: 240, cy: 600, r: 62,  label: 'SIDESTEP',    ptype: 'upper', type: 'body' }            // low and narrow: step to either side
+  UL: { tx: -55, r: 34, head: true,  hm: 1.68, ptype: 'cross', type: 'straight' },       // upper left: lean right, or duck
+  UR: { tx: 55,  r: 34, head: true,  hm: 1.68, ptype: 'cross', type: 'straight' },       // upper right: lean left, or duck
+  L:  { tx: -75, r: 34, head: false, hm: 1.26, ptype: 'cross', type: 'straight' },       // left side, body height: lean right
+  R:  { tx: 75,  r: 34, head: false, hm: 1.26, ptype: 'cross', type: 'straight' },       // right side, body height: lean left
+  H:  { tx: 0,   r: 42, head: true,  hm: 1.7, ptype: 'hook',  type: 'hook' }            // head level, centre: duck (or lean either way)
 };
+/* Where a point of the player's world (x metres to the player's left, y up, z forward) lands in figure space, through the same camera the 3D scene uses (portrait or landscape framing, plus the follow offset). */
+function arcProject(wx, wy, wz, camX) {
+  var V = VIEWS[W > 480 ? 'back' : 'backP'], fx = camX || 0, c = [V.pos[0] + fx, V.pos[1], V.pos[2]], t = [V.tgt[0] + fx, V.tgt[1], V.tgt[2]];
+  var f = [t[0] - c[0], t[1] - c[1], t[2] - c[2]], l = Math.hypot(f[0], f[1], f[2]); f = [f[0] / l, f[1] / l, f[2] / l];
+  var r = [f[1] * 0 - f[2] * 1, f[2] * 0 - f[0] * 0, f[0] * 1 - f[1] * 0]; l = Math.hypot(r[0], r[1], r[2]); r = [r[0] / l, r[1] / l, r[2] / l];        // f x up(0,1,0)
+  var u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]], d = [wx - c[0], wy - c[1], wz - c[2]];
+  var z = d[0] * f[0] + d[1] * f[1] + d[2] * f[2], tn = Math.tan(16 * Math.PI / 180), x = (d[0] * r[0] + d[1] * r[1] + d[2] * r[2]) / z / (tn * (W / H)), y = (d[0] * u[0] + d[1] * u[1] + d[2] * u[2]) / z / tn;
+  return { x: (0.5 + x / 2) * W - STX, y: (0.5 - y / 2) * H - STY, s: H / (2 * z * tn) };
+}
+function arcLaneGeom(key, camX) {
+  var Z = ARC.ZONES[key], P = arcProject(-Z.tx * ARC.KM, Z.hm, 0, camX), rm = Z.r * ARC.KM;
+  return { cx: P.x, cy: P.y, r: rm * P.s };
+}
+function arcLaneHit(lane, p) { return Math.abs(p.gx - lane.tx) < lane.r + BODY_HW && (!lane.head || p.duck < ARC.DUCK); }
 var ARC_WARN = [1.2, 1.1, 1.0, 0.9, 0.85];                                    // warning-to-impact seconds for rounds 1..5; after that 0.04 s faster per round, never below 0.6 s (tracking latency + human reaction)
 function arcWarnT(r) { if (SETTINGS.hard) r += 3; return r <= ARC_WARN.length ? ARC_WARN[r - 1] : Math.max(0.6, 0.85 - (r - 5) * 0.04); }          // Hard starts where Easy is at round 4 and keeps tightening
 function arcGap(r) { if (SETTINGS.hard) r += 3; return Math.max(0.1, 0.25 - (r - 1) * 0.02); }          // pause between a punch and the next warning
 function arcSeq(r) {
-  var pool = r < 2 ? ['L', 'R', 'H'] : ['L', 'R', 'H', 'B'], out = [], prev = '', k, c, g;
+  var pool = r < 2 ? ['L', 'R', 'H', 'UL', 'UR'] : ['L', 'R', 'H', 'UL', 'UR', 'H'], out = [], prev = '', k, c, g;
   for (k = 0; k < ARC.N; k++) { g = 0; do { c = pool[Math.floor(Math.random() * pool.length)]; g++; } while (c === prev && g < 12); out.push(c); prev = c; }
   return out;
 }
@@ -2661,14 +2681,15 @@ function arcOpp(G, dt) {
 }
 function arcLaunch(G, fx) {
   var A = G.arc, a = G.a, key = A.seq[A.i], Z = ARC.ZONES[key], wT = arcWarnT(A.round);
-  a.atk = { type: Z.type, ptype: Z.ptype, label: Z.label, zone: key, zx: Z.cx, cx: Z.cx, cy: Z.cy, r: Z.r, gy: Z.cy, hw: Z.r, y0: Z.cy - Z.r, y1: Z.cy + Z.r };
+  var gm = arcLaneGeom(key, G.camX);
+  a.atk = { type: Z.type, ptype: Z.ptype, label: '', zone: key, lane: Z, zx: 240 - Z.tx, cx: gm.cx, cy: gm.cy, r: gm.r, gy: gm.cy, hw: gm.r, y0: gm.cy - gm.r, y1: gm.cy + gm.r };
   a.side = A.i % 2 ? 'left' : 'right';
   setA(G, 'windup', wT); a.locked = true;                                     // the circle never moves: what you see is what lands
   A.busy = true; A.resolved = false; A.wt = 0; A.wDur = wT + 0.11; A.lastIn = -9; A.ticks = 0; fx.warn();       // 0.11 s after the strike starts is the impact frame (see updateAI)
 }
 /* called from updateAI at the impact frame */
 function arcStrike(G, fx) {
-  var A = G.arc, a = G.a, p = G.p, z = a.atk, px = 240 + p.x, hit = z ? circleHits(z, playerBox(p)) : true;
+  var A = G.arc, a = G.a, p = G.p, z = a.atk, px = 240 + p.x, hit = z ? arcLaneHit(z.lane, p) : true;
   A.resolved = true; A.i++; a.dodgedRecover = false;
   if (!hit) {
     var perfect = A.lastIn > 0 && A.lastIn >= A.wDur - 0.62, pts = perfect ? 50 : 25;      // perfect: you were still in the circle in the last half second and cleared it just in time
@@ -2721,7 +2742,8 @@ function arcStep(G, dt, punches, fx) {
     if (A.busy) {
       A.wt += dt;
       if (a.state === 'windup') {
-        if (circleHits(a.atk, playerBox(p))) A.lastIn = A.wt;
+        if (arcLaneHit(a.atk.lane, p)) A.lastIn = A.wt;
+        { var gm2 = arcLaneGeom(a.atk.zone, G.camX); a.atk.cx = gm2.cx; a.atk.cy = gm2.cy; a.atk.r = gm2.r; a.atk.y0 = gm2.cy - gm2.r; a.atk.y1 = gm2.cy + gm2.r; }
         var fr = A.wt / A.wDur;
         if (A.ticks === 0 && fr >= 0.5) { fx.tick(); A.ticks = 1; } else if (A.ticks === 1 && fr >= 0.75) { fx.tick(); A.ticks = 2; } else if (A.ticks === 2 && fr >= 0.9) { fx.tick(); A.ticks = 3; }
       }
@@ -2764,7 +2786,8 @@ function stepGame(G, dt, input, fx) {
   var gtarget = dsign ? dsign * clamp(Math.max(Math.abs(p.x), 130), 130, 170) : 0;
   p.gx += (gtarget - p.gx) * (1 - Math.exp(-dt * 9));
   { var cr = clamp(p.x / 150, -1, 1), cm = Math.max(0, Math.abs(cr) - 0.14) / 0.86 * (cr < 0 ? -1 : 1);        // dodge camera: follows the (already smoothed) lean only, never punches
-    G.cam += (cm - G.cam) * (1 - Math.exp(-dt * 5)); }
+    G.cam += (cm - G.cam) * (1 - Math.exp(-dt * 5));
+    if (G.arc) { var fol = W > 480 ? 0 : VIEWS.backP.follow; G.camX = (G.camX || 0) + (-p.x * ARC.KM * fol - (G.camX || 0)) * (1 - Math.exp(-dt * 6)); } }
   p.duck += (ub.duck - p.duck) * k14; p.roll += (ub.roll - p.roll) * k14; p.head += ((ub.head || 0) - p.head) * k14;
   if (!G.mixer) { G.mixer = new AnimMixer(); G.mixer.play('idle'); }
   var live = G.phase === 'fight' && !G.paused;
@@ -3420,70 +3443,91 @@ function drawDev(ctx, G) {
 }
 var HUDX = 0;
 /* ---- ARCADE drawing ---- */
-function drawArcWarn(ctx, G, time) {                  // figure space: the exact danger circle, and the ring that shrinks onto it as the glove comes in
+/* The warning artwork, painted once into a transparent 512 px sprite: gold hand-painted ring, comic impact wedges, and a big red glove with a black + white outline. */
+var WARN_SPRITE = null;
+function warnSprite() {
+  if (WARN_SPRITE) return WARN_SPRITE;
+  var c = document.createElement('canvas'); c.width = c.height = 512; var g = c.getContext('2d'), k;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  // ring: orange under-stroke, yellow body, a few lighter dry-brush streaks, and a gap like a real brush stroke
+  g.save(); g.translate(256, 256); g.shadowColor = 'rgba(255,140,0,.9)'; g.shadowBlur = 22;
+  var arcs = [[-2.2, 3.7, 40, '#ff8a00'], [-2.2, 3.7, 26, '#ffc21a'], [3.9, 5.2, 34, '#ff8a00'], [3.9, 5.2, 21, '#ffd84a']];
+  arcs.forEach(function (a) { g.beginPath(); g.arc(0, 0, 196, a[0], a[1]); g.lineWidth = a[2]; g.strokeStyle = a[3]; g.stroke(); });
+  g.shadowBlur = 0; g.strokeStyle = 'rgba(255,255,220,.85)'; g.lineWidth = 6;
+  [[-1.9, 0.4, 203], [0.9, 2.6, 190], [3.0, 3.6, 205]].forEach(function (a) { g.beginPath(); g.arc(0, 0, a[2], a[0], a[1]); g.stroke(); });
+  g.strokeStyle = '#ff8a00'; g.lineWidth = 7; [[-1.2, -0.9], [0.6, 0.9], [2.4, 2.7], [4.4, 4.7]].forEach(function (a) { g.beginPath(); g.moveTo(Math.cos(a[0]) * 214, Math.sin(a[0]) * 214); g.quadraticCurveTo(Math.cos((a[0] + a[1]) / 2) * 240, Math.sin((a[0] + a[1]) / 2) * 240, Math.cos(a[1]) * 214, Math.sin(a[1]) * 214); g.stroke(); });      // flame licks
+  g.restore();
+  // comic impact wedges (black outline, yellow fill)
+  [[-0.95, 205], [-0.55, 205], [0.2, 205], [-2.5, 205], [-2.05, 205]].forEach(function (w, i) {
+    var an = w[0], r1 = 232, r2 = 262 + (i % 2) * 10, sp = 0.07; g.beginPath(); g.moveTo(256 + Math.cos(an - sp) * r1, 256 + Math.sin(an - sp) * r1); g.lineTo(256 + Math.cos(an) * r2, 256 + Math.sin(an) * r2); g.lineTo(256 + Math.cos(an + sp) * r1, 256 + Math.sin(an + sp) * r1); g.closePath();
+    g.lineWidth = 6; g.strokeStyle = '#111'; g.stroke(); g.fillStyle = '#ffd21a'; g.fill();
+  });
+  // the glove: angled up and to the left, fist at the upper right, cuff at the lower left
+  g.save(); g.translate(262, 262); g.rotate(-0.62);
+  function fist() { g.beginPath(); g.moveTo(-80, -74); g.bezierCurveTo(-80, -128, 6, -142, 70, -118); g.bezierCurveTo(128, -96, 134, -22, 112, 28); g.bezierCurveTo(98, 60, 62, 78, 30, 84); g.lineTo(-62, 84); g.bezierCurveTo(-88, 40, -80, -30, -80, -74); g.closePath(); }
+  function thumb() { g.beginPath(); g.moveTo(-70, -10); g.bezierCurveTo(-130, -26, -150, 28, -108, 58); g.bezierCurveTo(-90, 70, -60, 64, -46, 40); g.closePath(); }
+  function cuff() { g.beginPath(); g.moveTo(-62, 80); g.lineTo(34, 80); g.lineTo(46, 150); g.lineTo(-52, 156); g.closePath(); }
+  [thumb, fist, cuff].forEach(function (f) { f(); g.lineWidth = 26; g.strokeStyle = '#ffffff'; g.stroke(); });             // white outer outline
+  [thumb, fist, cuff].forEach(function (f) { f(); g.lineWidth = 15; g.strokeStyle = '#0c0608'; g.stroke(); });              // black outline
+  var rg = g.createLinearGradient(-90, -130, 110, 80); rg.addColorStop(0, '#ff6a6f'); rg.addColorStop(0.45, '#e11d2e'); rg.addColorStop(1, '#a0101f');
+  fist(); g.fillStyle = rg; g.fill(); thumb(); var tg = g.createLinearGradient(-130, 0, -50, 60); tg.addColorStop(0, '#f23b48'); tg.addColorStop(1, '#b3121f'); g.fillStyle = tg; g.fill();
+  cuff(); var cg = g.createLinearGradient(0, 80, 0, 156); cg.addColorStop(0, '#fff6ee'); cg.addColorStop(1, '#d9cfc6'); g.fillStyle = cg; g.fill();
+  g.strokeStyle = '#c4a89a'; g.lineWidth = 5; g.beginPath(); g.moveTo(-58, 112); g.lineTo(40, 108); g.moveTo(-55, 134); g.lineTo(43, 130); g.stroke();
+  g.lineWidth = 8; g.strokeStyle = 'rgba(70,0,10,.55)'; g.beginPath(); g.moveTo(-44, 80); g.quadraticCurveTo(-64, 8, -52, -58); g.moveTo(10, 84); g.quadraticCurveTo(58, 40, 82, -16); g.stroke();      // finger folds
+  g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 11; g.beginPath(); g.moveTo(-50, -96); g.bezierCurveTo(-20, -118, 30, -120, 62, -100); g.stroke();                                          // glossy highlight
+  g.lineWidth = 7; g.beginPath(); g.moveTo(-98, 8); g.quadraticCurveTo(-110, 28, -96, 46); g.stroke();
+  g.restore();
+  WARN_SPRITE = c; return c;
+}
+function drawArcWarn(ctx, G, time) {                  // the glove warning: artwork only, no words. A ring contracts onto the glove and reaches it at the moment of impact.
   var A = G.arc, a = G.a, z = a.atk;
   if (!A || A.ph !== 'dodge' || !z || !(a.state === 'windup' || (a.state === 'strike' && a.stateT < 0.2))) return;
-  var pu = 0.5 + 0.5 * Math.sin(time * 18), prog = clamp(A.wt / A.wDur, 0, 1), strike = a.state === 'strike', ringR = z.r * (1 + 1.5 * Math.pow(1 - prog, 1.3)), late = prog > 0.8 || strike;
-  ctx.save();
-  var gr = ctx.createRadialGradient(z.cx, z.cy, z.r * 0.15, z.cx, z.cy, z.r);
-  gr.addColorStop(0, 'rgba(255,59,79,' + (0.14 + 0.2 * prog + 0.08 * pu) + ')'); gr.addColorStop(1, 'rgba(255,59,79,' + (0.3 + 0.3 * prog + 0.1 * pu) + ')');
+  var pu = 0.5 + 0.5 * Math.sin(time * 18), prog = clamp(A.wt / A.wDur, 0, 1), strike = a.state === 'strike', ringR = z.r * (1 + 1.0 * Math.pow(1 - prog, 1.3));
+  var ap = clamp(A.wt / 0.16, 0, 1), pop = ap < 1 ? 1 + 0.35 * Math.sin(ap * Math.PI) - 0.5 * (1 - ap) : 1, al = clamp(A.wt / 0.08, 0, 1);
+  ctx.save(); ctx.globalAlpha = al;
+  var gr = ctx.createRadialGradient(z.cx, z.cy, z.r * 0.2, z.cx, z.cy, z.r);
+  gr.addColorStop(0, 'rgba(255,40,60,' + (0.10 + 0.12 * prog) + ')'); gr.addColorStop(1, 'rgba(255,40,60,' + (0.22 + 0.25 * prog + 0.08 * pu) + ')');
   ctx.fillStyle = gr; circ(ctx, z.cx, z.cy, z.r); ctx.fill();
-  ctx.lineWidth = late ? 8 : 6; ctx.strokeStyle = late ? '#ffffff' : '#ff3b4f'; circ(ctx, z.cx, z.cy, z.r); ctx.stroke();
-  if (!strike) { ctx.lineWidth = 9; ctx.strokeStyle = 'rgba(255,222,110,' + (0.55 + 0.45 * prog) + ')'; circ(ctx, z.cx, z.cy, ringR); ctx.stroke(); }
-  if (strike) { ctx.fillStyle = 'rgba(255,255,255,' + (0.5 * (1 - a.stateT / 0.2)) + ')'; circ(ctx, z.cx, z.cy, z.r); ctx.fill(); }
-  // the warning graphic: a red boxing glove inside a flaming gold ring, with short burst lines; the label and a direction arrow sit underneath
-  var gs = z.r * (z.zone === 'B' ? 0.5 : 0.42) * (1 + 0.06 * pu), gx = z.cx, gy = z.cy - z.r * 0.14, k;
-  ctx.save(); ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,170,30,' + (0.55 + 0.3 * pu) + ')'; circ(ctx, z.cx, z.cy, z.r * 0.82 + 3 * pu); ctx.stroke(); ctx.restore();
-  ctx.save(); ctx.strokeStyle = '#ffd21a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
-  for (k = 0; k < 3; k++) { var an = -2.3 + k * 0.5 + (k === 1 ? 0 : 0), r1 = z.r * 1.02, r2 = z.r * 1.2; ctx.beginPath(); ctx.moveTo(z.cx + Math.cos(an) * r1, z.cy + Math.sin(an) * r1); ctx.lineTo(z.cx + Math.cos(an) * r2, z.cy + Math.sin(an) * r2); ctx.stroke(); }
-  ctx.restore();
-  ctx.save(); ctx.translate(gx, gy); ctx.rotate(-0.45); ctx.lineWidth = Math.max(3, gs * 0.1); ctx.strokeStyle = '#2a0608'; ctx.lineJoin = 'round';
-  var gg = ctx.createLinearGradient(0, -gs, 0, gs * 0.8); gg.addColorStop(0, '#ff5a63'); gg.addColorStop(1, '#c01220'); ctx.fillStyle = gg;
-  rr(ctx, -gs * 0.58, -gs * 0.78, gs * 1.16, gs * 1.12, gs * 0.46); ctx.fill(); ctx.stroke();                    // fist
-  ctx.beginPath(); ctx.ellipse(-gs * 0.5, -gs * 0.06, gs * 0.26, gs * 0.34, -0.4, 0, 6.2832); ctx.fill(); ctx.stroke();    // thumb
-  ctx.fillStyle = '#f4f0ea'; rr(ctx, -gs * 0.42, gs * 0.3, gs * 0.84, gs * 0.42, gs * 0.1); ctx.fill(); ctx.stroke();      // cuff
-  ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(2, gs * 0.06); ctx.beginPath(); ctx.moveTo(-gs * 0.2, -gs * 0.6); ctx.quadraticCurveTo(gs * 0.15, -gs * 0.7, gs * 0.3, -gs * 0.4); ctx.stroke();
-  ctx.restore();
-  var ar = z.zone === 'L' ? ' →' : z.zone === 'R' ? '← ' : z.zone === 'H' ? ' ▼' : ' ↔';
-  textOutlined(ctx, (z.zone === 'R' ? '← ' : '') + tr(z.label) + (z.zone === 'R' ? '' : ar), z.cx, z.cy + z.r * (z.zone === 'B' ? 0.62 : 0.55), z.zone === 'B' ? 17 : 24, '#ffffff', 0.97);
+  if (!strike) { ctx.lineWidth = 8 + 4 * prog; ctx.strokeStyle = 'rgba(255,214,60,' + (0.6 + 0.4 * prog) + ')'; ctx.shadowColor = 'rgba(255,140,0,.9)'; ctx.shadowBlur = 12; circ(ctx, z.cx, z.cy, ringR); ctx.stroke(); ctx.shadowBlur = 0; }
+  var sz = z.r * 2 * 1.2 * pop * (1 + 0.04 * pu);
+  ctx.translate(z.cx, z.cy); ctx.rotate(Math.sin(time * 14) * 0.05); ctx.drawImage(warnSprite(), -sz / 2, -sz / 2, sz, sz);
+  if (strike) { ctx.fillStyle = 'rgba(255,255,255,' + (0.5 * (1 - a.stateT / 0.2)) + ')'; ctx.beginPath(); ctx.arc(0, 0, z.r, 0, 6.2832); ctx.fill(); }
   ctx.restore();
 }
-function drawArcTop(ctx, G, time) {                    // HUD: round badge in the middle, SCORE and PUNCHES in the upper right, phase information underneath
-  var A = G.arc, cx = W / 2, cy = 50, sc = 1 + 0.16 * A.pulse, i;
-  ctx.save(); hexPath(ctx, cx, cy, 39, 30);
-  var g = ctx.createLinearGradient(0, cy - 30, 0, cy + 30); g.addColorStop(0, '#2c2d34'); g.addColorStop(1, '#0b0b0f'); ctx.fillStyle = g; ctx.fill();
-  var sg = ctx.createLinearGradient(cx - 39, 0, cx + 39, 0); sg.addColorStop(0, '#9aa0ad'); sg.addColorStop(0.5, '#ffc42e'); sg.addColorStop(1, '#9aa0ad');
-  ctx.strokeStyle = sg; ctx.lineWidth = 3; ctx.stroke();
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = 'italic 700 9px ' + HFONT; ctx.fillText(tr('ROUND'), cx, cy - 12);
-  ctx.font = 'italic 900 24px ' + HFONT; ctx.fillText(String(A.round), cx, cy + 8);
+function arcBrush(ctx, x, y, w, h, sk, col, jit) {                          // a slanted slab with a rough, hand-brushed edge
+  var n = 7, k, t, ox;
+  ctx.beginPath(); ctx.moveTo(x + sk, y);
+  for (k = 1; k <= n; k++) { t = k / n; ctx.lineTo(x + sk + (w - sk) * t, y + (k % 2 ? -jit : jit * 0.6)); }
+  ctx.lineTo(x + w, y + h * 0.5); ctx.lineTo(x + w - sk, y + h);
+  for (k = n - 1; k >= 0; k--) { t = k / n; ctx.lineTo(x + (w - sk) * t, y + h + (k % 2 ? jit : -jit * 0.6)); }
+  ctx.lineTo(x, y + h * 0.5); ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+}
+function drawArcTop(ctx, G, time) {                    // HUD in the approved reference style: ROUND banner + timer banner in the middle, SCORE / PUNCHES upper right, round dots underneath
+  var A = G.arc, cx = W / 2 + 4, sc = 1 + 0.16 * A.pulse, i, bw = 124, bx = cx - bw / 2, by = 12;
+  ctx.save();
+  arcBrush(ctx, bx + 4, by + 5, bw, 38, 12, '#050505', 3);                                                                         // black brush shadow
+  arcBrush(ctx, bx, by, bw, 38, 12, '#d41f2b', 2.5); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.stroke();
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.lineJoin = 'round';
+  ctx.font = 'italic 900 17px ' + HFONT; ctx.lineWidth = 4; ctx.strokeStyle = '#2a0508'; ctx.strokeText(tr('ROUND'), bx + 16, by + 21); ctx.fillStyle = '#fff'; ctx.fillText(tr('ROUND'), bx + 16, by + 21);
+  ctx.textAlign = 'center'; ctx.font = 'italic 900 ' + Math.round(34 * sc) + 'px ' + HFONT; ctx.lineWidth = 5; ctx.strokeStyle = '#2a0508'; ctx.strokeText(String(A.round), bx + bw - 24, by + 21); ctx.fillStyle = '#ffd21a'; ctx.fillText(String(A.round), bx + bw - 24, by + 21);
+  var left = A.ph === 'attack' ? Math.max(0, ARC.ATK - A.atkT) : ARC.ATK, ty = by + 46, tw = 112, tx = cx - tw / 2, hot = A.ph === 'attack' && left < 2;
+  ctx.beginPath(); ctx.moveTo(tx + 8, ty); ctx.lineTo(tx + tw, ty); ctx.lineTo(tx + tw - 8, ty + 34); ctx.lineTo(tx, ty + 34); ctx.closePath(); ctx.fillStyle = '#0a0a0c'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = hot ? '#ff3b4f' : '#ffb42e'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(tx + 26, ty + 19, 9, 0, 6.2832); ctx.lineWidth = 2.5; ctx.strokeStyle = '#ffd21a'; ctx.stroke();            // stopwatch
+  ctx.beginPath(); ctx.moveTo(tx + 26, ty + 19); ctx.lineTo(tx + 26, ty + 13); ctx.moveTo(tx + 22, ty + 8); ctx.lineTo(tx + 30, ty + 8); ctx.stroke();
+  ctx.textAlign = 'left'; ctx.font = 'italic 900 25px ' + HFONT; ctx.fillStyle = hot ? '#ff6b6b' : (A.ph === 'attack' ? '#ffd21a' : 'rgba(255,210,26,.55)'); ctx.fillText('0:0' + Math.ceil(left), tx + 42, ty + 19);
   ctx.restore();
-  // score panel (mirror of the health bar)
-  var px = W / 2 + 36, pw = W - 14 - px, py = 28, ph = 58;
-  ctx.save(); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + pw, py); ctx.lineTo(px + pw, py + ph); ctx.lineTo(px + 10, py + ph); ctx.closePath();
-  ctx.fillStyle = 'rgba(8,8,12,.82)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,196,46,.8)'; ctx.lineWidth = 2; ctx.stroke();
-  ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffc42e'; ctx.font = 'italic 800 11px ' + HFONT; ctx.fillText(tr('SCORE'), px + 18, py + 14);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 ' + Math.round(30 * sc) + 'px ' + HFONT; ctx.fillText(String(Math.round(A.shown)), px + pw - 12, py + 20);
-  ctx.textAlign = 'left'; ctx.fillStyle = '#9fe8ff'; ctx.font = 'italic 800 11px ' + HFONT; ctx.fillText(tr('PUNCHES'), px + 18, py + 44);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 20px ' + HFONT; ctx.fillText(String(A.punches), px + pw - 12, py + 44);
+  // SCORE and PUNCHES: black angular panel, gold edge, yellow score, cyan punches
+  var px = cx + bw / 2 + 8, pw = W - 8 - px, py = 14, ph = 60;
+  ctx.save(); ctx.beginPath(); ctx.moveTo(px + 12, py); ctx.lineTo(px + pw, py); ctx.lineTo(px + pw - 12, py + ph); ctx.lineTo(px, py + ph); ctx.closePath();
+  ctx.fillStyle = '#08080c'; ctx.fill(); var eg = ctx.createLinearGradient(px, 0, px + pw, 0); eg.addColorStop(0, '#ffb42e'); eg.addColorStop(0.5, '#ff4fa0'); eg.addColorStop(1, '#3be8ff'); ctx.strokeStyle = eg; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffd21a'; ctx.font = 'italic 900 13px ' + HFONT; ctx.fillText(tr('SCORE'), px + 16, py + 19);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 ' + Math.round(30 * sc) + 'px ' + HFONT; ctx.fillText(String(Math.round(A.shown)), px + pw - 14, py + 19);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#3be8ff'; ctx.font = 'italic 900 12px ' + HFONT; ctx.fillText(tr('PUNCHES'), px + 14, py + 44);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 22px ' + HFONT; ctx.fillText(String(A.punches), px + pw - 16, py + 44);
   ctx.restore();
-  // bottom pill: SCORE | HIGH SCORE (reference pages 3 and 4)
-  var bw2 = Math.min(W - 30, 330), bx = (W - bw2) / 2, by = H - 62;
-  ctx.save(); rr(ctx, bx, by, bw2, 44, 22); ctx.fillStyle = 'rgba(20,6,50,.85)'; ctx.fill(); ctx.strokeStyle = '#e78bff'; ctx.lineWidth = 2; ctx.stroke();
-  ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.font = 'italic 800 11px ' + HFONT; ctx.fillStyle = '#fff'; ctx.fillText('★ ' + tr('SCORE'), bx + 16, by + 22);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#ffd21a'; ctx.font = 'italic 900 20px ' + HFONT; ctx.fillText(String(Math.round(A.shown)), bx + bw2 / 2 - 14, by + 22);
-  ctx.textAlign = 'left'; ctx.font = 'italic 800 11px ' + HFONT; ctx.fillStyle = '#fff'; ctx.fillText('♛ ' + tr('HIGH SCORE'), bx + bw2 / 2 + 8, by + 22);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#ffd21a'; ctx.font = 'italic 900 20px ' + HFONT; ctx.fillText(String(Math.max(A.best || 0, Math.round(A.shown))), bx + bw2 - 14, by + 22);
-  ctx.restore();
-  // phase strip
-  if (A.ph === 'dodge' || A.ph === 'intro') {
-    for (i = 0; i < ARC.N; i++) { var on = i < A.i; ctx.fillStyle = on ? '#ffc42e' : 'rgba(255,255,255,.28)'; circ(ctx, cx + (i - (ARC.N - 1) / 2) * 18, 108, 5.5, ctx.fillStyle); }
-  } else if (A.ph === 'attack') {
-    var left = Math.max(0, ARC.ATK - A.atkT), bw = 180;
-    ctx.save(); rr(ctx, cx - bw / 2, 102, bw, 10, 5); ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fill();
-    rr(ctx, cx - bw / 2, 102, Math.max(6, bw * left / ARC.ATK), 10, 5); ctx.fillStyle = left < 2 ? '#ff3b4f' : '#ffc42e'; ctx.fill(); ctx.restore();
-    textOutlined(ctx, String(Math.ceil(left)), cx, 134, 30 + (left < 3 ? 6 * Math.abs(Math.sin(time * 8)) : 0), left < 3 ? '#ff6b6b' : '#ffffff');
-  }
+  // round-progress dots: one per punch of the dodge phase
+  for (i = 0; i < ARC.N; i++) { var on = A.ph === 'attack' || A.ph === 'roundEnd' || i < A.i; ctx.fillStyle = on ? '#ffd21a' : 'rgba(255,255,255,.35)'; circ(ctx, cx + (i - (ARC.N - 1) / 2) * 17, 106, 5.5, ctx.fillStyle); }
 }
 function drawArcOverlay(ctx, G, time) {                 // big centred messages: ROUND n, ATTACK!, ROUND COMPLETE, and the combo counter
   var A = G.arc, k, al, cy = HUDS > 1 ? H * 0.34 : 215;
@@ -3505,7 +3549,7 @@ function drawArcOverlay(ctx, G, time) {                 // big centred messages:
 }
 
 function drawHUD(ctx, G, time) {
-  BAR.x1 = W / 2 - 32;                                                         // bars always end next to the centre badge (208 at 480 wide)
+  BAR.x1 = G.arc ? W / 2 - 66 : W / 2 - 32;                                  // bars always end next to the centre badge (208 at 480 wide)
   var hg = ctx.createLinearGradient(0, 0, 0, 120); hg.addColorStop(0, 'rgba(0,0,0,.55)'); hg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = hg; ctx.fillRect(-HUDX, 0, W + 2 * HUDX, 120);
   loadFace();
@@ -4955,7 +4999,7 @@ function App() {
   return h(React.Fragment, null, !full ? h('div', { className: 'fgbg', style: { backgroundImage: bgUrl } }) : null, !full ? h('div', { className: 'fgvig' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null);
 }
 
-window.__MB = { roomPaint: roomPaint, ROOM: ROOM, OWNED: OWNED, PREMIUM: PREMIUM, charFree: charFree, UI: { CharSelect: CharSelect, ArcOver: ArcOver, App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
+window.__MB = { setW: function (w) { setFrameW(w); }, arcProject: arcProject, arcLaneGeom: arcLaneGeom, arcLaneHit: arcLaneHit, warnSprite: warnSprite, roomPaint: roomPaint, ROOM: ROOM, OWNED: OWNED, PREMIUM: PREMIUM, charFree: charFree, UI: { CharSelect: CharSelect, ArcOver: ArcOver, App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
