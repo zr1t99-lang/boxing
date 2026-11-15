@@ -1261,6 +1261,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
+var APP_BUILD = 'v49';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { auto: 'AUTO', stand: 'STANDING', sit: 'SITTING' }, STANCE_NEXT = { auto: 'stand', stand: 'sit', sit: 'auto' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -4247,7 +4248,7 @@ function SettingsScreen(props) {
     return h('div', { className: 'setl' },
       h(FgHero, null),
       h('div', { className: 'setl-logo' }, h(FgLogo)),
-      h('div', { className: 'setl-title' }, h('h2', null, 'Settings'), h('p', null, 'Adjust game sensitivity and preferences')),
+      h('div', { className: 'setl-title' }, h('h2', null, 'Settings'), h('p', null, 'Adjust game sensitivity and preferences · ' + APP_BUILD)),
       h('div', { className: 'setl-cards' },
         h('div', { className: 'setl-panel' }, h('h3', null, h(Ico, { n: 'gear' }), 'Sensitivity'), sl2('Dodge sensitivity', 'dodge'), sl2('Punch sensitivity', 'punch'), sl2('Neutral dead zone', 'dead')),
         h('div', { className: 'setl-panel' }, h('h3', null, h(Ico, { n: 'people' }), 'Player name ', h('small', null, '(shown to your opponent)')),
@@ -4262,7 +4263,7 @@ function SettingsScreen(props) {
       h('div', { className: 'setl-back' }, h(FgBtn, { cls: 'gold', icon: 'back', label: 'BACK', onClick: props.onBack })));
   }
   return h('div', { className: 'screen fit' },
-    h('h2', { className: 'title' }, 'Settings'),
+    h('h2', { className: 'title' }, 'Settings ', h('small', null, APP_BUILD)),
     h('div', { className: 'card slim sliders' }, slider('Dodge sensitivity', 'dodge'), slider('Punch sensitivity', 'punch'), slider('Neutral dead zone', 'dead')),
     h('div', { className: 'card slim' },
       h('label', { className: 'fld' }, h('span', null, 'Your name (shown to your opponent)'), h('input', { type: 'text', value: cfg.name, maxLength: 14, placeholder: 'Player', autoCorrect: 'off', onChange: function (e) { setC({ name: e.target.value }); } }))),
@@ -4670,7 +4671,7 @@ function DevPanel(props) {
 
 function MStatus(props) {
   var snap = useSnap(props.tracker, 150);
-  return h('div', { className: 'mst' }, h(StatusChip, { status: snap.status }), h(VisPips, { snap: snap }), snap.fps ? h('span', { className: 'fpsx' }, snap.fps + ' fps') : null);
+  return h('div', { className: 'mst' }, h(StatusChip, { status: snap.status }), h(VisPips, { snap: snap }), snap.fps ? h('span', { className: 'fpsx' }, snap.fps + ' fps') : null, h('span', { className: 'fpsx' }, APP_BUILD));
 }
 
 /* Victory dance: after a win the fighter is shown from the front, like a mirror, and copies the player's moves for 7 seconds on an empty stage. */
