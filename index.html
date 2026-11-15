@@ -2144,8 +2144,9 @@ var KRig = (function () {
    KHALID 3D PLAYER (Three.js). The rigged model is rendered off-screen and composited into the 2D arena.
    The pose comes from KRig (live tracking first, short animation accents on top).
    ====================================================================== */
+/* Over-the-back camera, solved by projecting the model's head/hips/feet through this lens for the landscape window (the 1.45x zoomed middle band of the render): head top at about 8 percent, below the buttocks at about 93 percent, opponent ahead, right of centre. */
 var VIEWS = {
-  back:  { pos: [0.22, 2.74, -3.01], tgt: [0, 1.82, 0.5], fov: 32, mirror: false, label: 'BACK' },
+  back:  { pos: [-0.6, 1.65, -2.9], tgt: [0.25, 1.2, 2.2], fov: 32, mirror: false, label: 'BACK' },
   front: { pos: [0.0, 2.45, 3.9], tgt: [0, 1.8, 0], fov: 32, mirror: true, label: 'FRONT' }
 };
 var K3 = { status: 'idle', error: '', view: 'back', rig: null, bones: null, renderer: null, scene: null, camera: null, canvas: null, promise: null, dpr: 0,
