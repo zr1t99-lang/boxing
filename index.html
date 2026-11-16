@@ -1266,7 +1266,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-var APP_BUILD = 'v52';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
+var APP_BUILD = 'v53';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { full: 'FULL BODY', half: 'HALF BODY' }, STANCE_NEXT = { full: 'half', half: 'full' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -1494,7 +1494,7 @@ GestureEngine.prototype.update = function (raw, vw, vh, t, world) {
   if (this.hasW) {
     var wl = this.wl || (this.wl = []), wfl = this.wflt || (this.wflt = {});
     for (wi = 0; wi < WJ.length; wi++) {
-      var wj = WJ[wi]; wq = world[wj]; WF = wfl[wj] || (wfl[wj] = wj >= 23 ? [new OneEuro(1.1, 4), new OneEuro(1.1, 4), new OneEuro(1.1, 4)] : [new OneEuro(3, 12), new OneEuro(3, 12), new OneEuro(2, 8)]); wo = wl[wj] || (wl[wj] = {});
+      var wj = WJ[wi]; wq = world[wj]; WF = wfl[wj] || (wfl[wj] = wj >= 23 ? [new OneEuro(2, 9), new OneEuro(2, 9), new OneEuro(2, 9)] : [new OneEuro(3, 12), new OneEuro(3, 12), new OneEuro(2, 8)]); wo = wl[wj] || (wl[wj] = {});
       wo.x = WF[0].f(wq.x, dt); wo.y = WF[1].f(wq.y, dt); wo.z = WF[2].f(wq.z, dt);
     }
   }
@@ -2474,6 +2474,22 @@ function punchBody(o, time, st) {
   });
   o.yaw = clamp(yaw, -1, 1); o.lunge = lunge; o.dip = dip;
 }
+/* Planted-foot stance (ported from the Dance Motion game): each foot has an anchor; a foot that is low and still is held, the fighter's x follows the held feet, so he travels only when the player really steps. */
+function LegStance() { this.x = 0; this.A = [0, 0]; this.last = [0, 0]; this.v = [0, 0]; this.ready = false; }
+LegStance.prototype.reset = function () { this.ready = false; this.x = 0; };
+LegStance.prototype.update = function (pelvisX, ankleX, ankleY, dt) {
+  var d = Math.max(dt, 0.001), low = Math.min(ankleY[0], ankleY[1]), F = [pelvisX + ankleX[0], pelvisX + ankleX[1]], f, sw = 0, sg = 0;
+  if (!this.ready) { this.ready = true; this.x = pelvisX; this.A = F.slice(); this.last = F.slice(); this.v = [0, 0]; }
+  for (f = 0; f < 2; f++) {
+    var raw = Math.abs(F[f] - this.last[f]) / d; this.last[f] = F[f];
+    this.v[f] += (raw - this.v[f]) * (1 - Math.exp(-d / 0.12));
+    var w = clamp(1 - (ankleY[f] - low) / 0.06, 0, 1) * clamp(1 - this.v[f] / 0.35, 0, 1), r = 0.05 * w, off = Math.max(-r, Math.min(r, this.A[f] - F[f]));
+    this.A[f] = F[f] + off; sw += w; sg += w * (this.A[f] - ankleX[f]);
+  }
+  var target = (sg + 0.04 * pelvisX) / (sw + 0.04), step = (target - this.x) * (1 - Math.exp(-d * 24)), cap = 3.5 * d;
+  this.x += step > cap ? cap : step < -cap ? -cap : step;
+  return this.x;
+};
 function k3Opts(G, time) {
   var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: 0, leanK: 0.72, legs: p.leg, legW: p.legW, walk: p.walk, zwalk: p.zw, hipDrop: p.hd, gaitA: p.gaitA, gaitP: p.gaitP, mimic: p.mimW > 0.01 ? { w: p.mimW, tr: p.mim.tr, sx: p.mim.sx, sz: p.mim.sz } : null };      // the feet stay planted: only the upper body leans (no sliding of the whole fighter)
   if (p.punch && p.punch !== K3.lastPunch) { K3.lastPunch = p.punch; K3.jab = { side: p.punch.side, t0: time, kind: p.punch.type }; K3.boost[p.punch.side] = time; K3.kind[p.punch.side] = p.punch.type || 'jab'; }
@@ -2488,7 +2504,7 @@ function k3Opts(G, time) {
   var tt, ac, name;
   if (K3.jab) {            // short accent from the matching imported clip (Left/Right_Jab, Left_Short_Hook); an uppercut has no clip and stays procedural
     name = K3.jab.kind === 'hook' ? 'hook' : K3.jab.kind === 'upper' ? null : (K3.jab.side === 'L' ? 'jabL' : 'jabR');
-    if (name) { ac = rig.acc[name]; tt = time - K3.jab.t0; if (tt >= 0 && tt < ac.dur) o.acc.push({ name: name, t: tt, w: 0.45 * KIND[K3.jab.kind || 'jab'].clip * Math.sin(tt / ac.dur * Math.PI) }); else if (tt >= ac.dur) K3.jab = null; }
+    if (name) { ac = rig.acc[name]; tt = time - K3.jab.t0; if (tt >= ac.dur) K3.jab = null; }                    /* the imported jab/hook clips no longer play on the player: the motion is the player's own */
     else if (time - K3.jab.t0 > 0.5) K3.jab = null;
   }
   if (K3.hit) { ac = rig.acc.hit; tt = time - K3.hit.t0; if (tt >= 0 && tt < ac.dur) o.acc.push({ name: 'hit', t: tt, w: 0.8 * Math.min(1, tt / 0.05) * (1 - tt / ac.dur) }); else if (tt >= ac.dur) K3.hit = null; }
@@ -2976,17 +2992,19 @@ function stepGame(G, dt, input, fx) {
       if (t.u3 && t.f3) { a.u3 = a.u3 ? [a.u3[0] + (t.u3[0] - a.u3[0]) * k30, a.u3[1] + (t.u3[1] - a.u3[1]) * k30, a.u3[2] + (t.u3[2] - a.u3[2]) * k30] : t.u3.slice(); a.f3 = a.f3 ? [a.f3[0] + (t.f3[0] - a.f3[0]) * k30, a.f3[1] + (t.f3[1] - a.f3[1]) * k30, a.f3[2] + (t.f3[2] - a.f3[2]) * k30] : t.f3.slice(); a.m3 = 1; } else a.m3 = 0; } else a.m3 = 0;
   });
   { var lw = ub.legs ? 1 : 0; p.legW += (lw - p.legW) * Math.min(1, dt * 5);                                  // legs: followed only while the camera really sees them
-    var kL = Math.min(1, dt * 16), vec = function (cur, tg) { if (!tg) return null; if (!cur) return tg.slice(); return [cur[0] + (tg[0] - cur[0]) * kL, cur[1] + (tg[1] - cur[1]) * kL, cur[2] + (tg[2] - cur[2]) * kL]; };
+    var kL = 1 - Math.exp(-dt * 30), vec = function (cur, tg) { if (!tg) return null; if (!cur) return tg.slice(); return [cur[0] + (tg[0] - cur[0]) * kL, cur[1] + (tg[1] - cur[1]) * kL, cur[2] + (tg[2] - cur[2]) * kL]; };
     if (ub.legs) ['R', 'L'].forEach(function (s2) { var a2 = p.leg[s2], t2 = ub.legs[s2]; a2.kx += (t2.kx - a2.kx) * kL; a2.ky += (t2.ky - a2.ky) * kL; a2.ax += (t2.ax - a2.ax) * kL; a2.ay += (t2.ay - a2.ay) * kL; a2.va = t2.va; a2.lift += ((t2.va ? t2.lift : 0) - a2.lift) * Math.min(1, dt * 12); a2.t = vec(a2.t, t2.t); a2.s = t2.va ? vec(a2.s, t2.s) : null; });
     else ['R', 'L'].forEach(function (s2) { p.leg[s2].lift *= Math.exp(-dt * 8); });
-    var w0 = p.walk, z0 = p.zw;
-    p.walk += clamp((clamp((ub.walk || 0) * 0.5, -0.9, 0.9) - p.walk) * (1 - Math.exp(-dt * 8)), -2.5 * dt, 2.5 * dt);       /* eased, speed-limited to 2.5 m/s */
-    p.zw += clamp((clamp((ub.depth || 0) * 2.2, -0.5, 0.6) - p.zw) * (1 - Math.exp(-dt * 8)), -1.5 * dt, 1.5 * dt);          // stepping toward or away from the camera
-    p.hd += ((ub.hipDrop || 0) - p.hd) * (1 - Math.exp(-dt * 12));
+    { /* planted-foot stance (the Dance Motion way): a foot on the floor that is not moving stays exactly where it is; the fighter travels sideways only when the player really steps; no jump, no walking toward or away from the camera, no fake steps */
+      if (!p.stance) p.stance = new LegStance();
+      var lgR = p.leg.R, lgL = p.leg.L, rawX = clamp((ub.walk || 0) * 0.5, -0.9, 0.9), gx = rawX;
+      if (ub.legs && lgR.t && lgR.s && lgL.t && lgL.s) { gx = p.stance.update(rawX, [lgR.t[0] * 0.4 + lgR.s[0] * 0.4, lgL.t[0] * 0.4 + lgL.s[0] * 0.4], [-(lgR.t[1] * 0.4 + lgR.s[1] * 0.4), -(lgL.t[1] * 0.4 + lgL.s[1] * 0.4)], dt); }
+      else p.stance.reset();
+      p.walk += clamp(clamp(gx, -0.9, 0.9) - p.walk, -2.5 * dt, 2.5 * dt); p.zw = 0; p.gaitA = 0; p.gaitP = 0;
+      p.hd += (Math.max(0, ub.hipDrop || 0) - p.hd) * (1 - Math.exp(-dt * 20));                              // squats lower the body; the fighter never leaves the floor
     { var mm = ub.mim, mk = Math.min(1, dt * 16); p.mimW += ((mm ? 1 : 0) - p.mimW) * Math.min(1, dt * 5); if (mm) { p.mim.tr = [p.mim.tr[0] + (mm.tr[0] - p.mim.tr[0]) * mk, p.mim.tr[1] + (mm.tr[1] - p.mim.tr[1]) * mk, p.mim.tr[2] + (mm.tr[2] - p.mim.tr[2]) * mk]; p.mim.sx += (mm.sx - p.mim.sx) * mk; p.mim.sz += (mm.sz - p.mim.sz) * mk; } }
-    if (!ub.legs) { p.walk *= Math.exp(-dt * 3); p.zw *= Math.exp(-dt * 3); p.hd *= Math.exp(-dt * 6); }
-    var spd = dt > 0 ? (Math.abs(p.walk - w0) + Math.abs(p.zw - z0)) / dt : 0;                                 // walking speed drives a small stepping motion of the feet
-    p.gaitA += (clamp(spd / 0.5, 0, 1) - p.gaitA) * Math.min(1, dt * 8); p.gaitP += dt * (7 + 5 * p.gaitA); }
+    if (!ub.legs) { p.walk *= Math.exp(-dt * 3); p.hd *= Math.exp(-dt * 6); }
+    } }
   G.vis = ub.vis;
   if (ub.vis && !ub.vis.shoulders) G.lostT += dt; else G.lostT = 0;
   G.paused = G.lostT > 0.8;                  // body lost: the clock and the AI stop instead of pretending
