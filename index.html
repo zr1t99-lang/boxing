@@ -1266,7 +1266,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-var APP_BUILD = 'v51';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
+var APP_BUILD = 'v52';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { full: 'FULL BODY', half: 'HALF BODY' }, STANCE_NEXT = { full: 'half', half: 'full' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -2226,7 +2226,7 @@ var KRig = (function () {
       if (ma > 0.01) {
         var m1 = vnorm(vadd(vadd(vmul(RIGHT, a.u3[0]), vmul(UP, -a.u3[1])), vmul(FWD, a.u3[2]))), m2 = vnorm(vadd(vadd(vmul(RIGHT, a.f3[0]), vmul(UP, -a.f3[1])), vmul(FWD, a.f3[2])));
         d1 = vnorm(vadd(vmul(vnorm(d1), 1 - ma), vmul(m1, ma))); d2 = vnorm(vadd(vmul(vnorm(d2), 1 - ma), vmul(m2, ma)));
-        boost = boost * (1 - 0.8 * ma);                            // the punch is the player's own punch: the canned punch pose only adds a little
+        boost = boost * (1 - 0.45 * ma);                           // the punch is the player's own punch, but a thrown punch must read as a clear reach at the opponent: the canned extension still counts
       }
       if (boost > 0) {                               // punch: the limb really travels to the punch pose while it lasts, then hands control back to the tracked pose
         var b = Math.min(boost, 1), kind = a && a.kind || 'jab', OUT = vmul(RIGHT, gs), T1, T2, k1 = 0.92, k2 = 1;
@@ -2237,7 +2237,7 @@ var KRig = (function () {
           T1 = vnorm(vadd(vadd(vmul(FWD, 0.55), vmul(UP, -0.4)), vmul(OUT, 0.1)));
           T2 = vnorm(vadd(vmul(UP, 0.9), vmul(FWD, 0.45)));
         } else {                                     // jab and cross: straight at the opponent, a cross goes all the way
-          T1 = T2 = vnorm(vadd(vadd(FWD, vmul(UP, 0.08)), vmul(RIGHT, -0.12 * gs)));
+          T1 = T2 = vnorm(vadd(vadd(FWD, vmul(UP, -0.02)), vmul(RIGHT, -0.12 * gs)));
           if (kind === 'jab') { k1 = 0.62; k2 = 0.72; }      // a jab is short and fast, a cross goes all the way
         }
         d1 = vnorm(vadd(vmul(vnorm(d1), 1 - b * k1), vmul(T1, b * k1)));
@@ -2432,10 +2432,14 @@ K3.syncChar = function () {                                             // show 
 };
 K3.applyEm = function (rig) {                                           // transfer Khalid's solved pose to Emerald's skeleton
   var E = K3.cur(); if (!E) return;
-  var M = E.map || EMERALD_MAP, Q = KRig.Q, ord = M.order, W = E.W, o, j, k, p, pw, wj, lj, d;
+  var M = E.map || EMERALD_MAP, Q = KRig.Q, ord = M.order, W = E.W, HR = rig.idx.RightHand, HL = rig.idx.LeftHand, o, j, k, p, pw, wj, lj, d;
   for (o = 0; o < ord.length; o++) {
     j = ord[o]; p = M.par[j]; pw = p < 0 ? [0, 0, 0, 1] : W[p]; k = M.map[j];
-    if (k >= 0) {
+    if (k >= 0 && p >= 0 && (k === HR || k === HL) && M.bindQ && M.bindQ[j]) {              // the wrist stays straight: the hand continues the forearm exactly as in the model's own rest pose (the guard pose it was matched to has a bent wrist)
+      lj = M.bindQ[j]; wj = Q.mul(pw, lj);
+      var l0 = Math.sqrt(wj[0] * wj[0] + wj[1] * wj[1] + wj[2] * wj[2] + wj[3] * wj[3]) || 1; W[j] = [wj[0] / l0, wj[1] / l0, wj[2] / l0, wj[3] / l0];
+      E.bones[j].quaternion.set(lj[0], lj[1], lj[2], lj[3]).normalize();
+    } else if (k >= 0) {
       d = Q.mul(rig.wq[k], M.invK0[j]); wj = Q.mul(d, M.n0[j]); lj = Q.mul(Q.inv(pw), wj);
       var l = Math.sqrt(wj[0] * wj[0] + wj[1] * wj[1] + wj[2] * wj[2] + wj[3] * wj[3]) || 1; W[j] = [wj[0] / l, wj[1] / l, wj[2] / l, wj[3] / l];
       E.bones[j].quaternion.set(lj[0], lj[1], lj[2], lj[3]).normalize();
