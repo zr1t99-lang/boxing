@@ -843,6 +843,18 @@ html[dir="rtl"] .ztitle b { font-style: normal; text-transform: none; }
 .zb.st-cont { --u: min(0.9px, 0.12vh); position: relative; width: min(46vw, 420px); height: min(13vh, 90px); font-size: min(5vw, 7vh); justify-content: center; }
 .zcc-lock { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); width: calc(var(--u) * 54); height: calc(var(--u) * 54); border-radius: 50%; background: rgba(0,0,0,.72); border: calc(var(--u) * 3) solid #ffc42e; display: grid; place-items: center; }
 .zcc-lock svg { width: 58%; height: 58%; fill: #ffc42e; }
+
+/* ===== portrait: turn the phone ===== */
+.rot { position: fixed; inset: 0; z-index: 1000; background: #000; display: grid; place-items: center; overflow: hidden; }
+.rot-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 22% 50%; opacity: .22; }
+.rot::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,.75), rgba(0,0,0,.2) 75%); }
+.rot-in { z-index: 1; }
+.rot-in { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 0 28px; text-align: center; color: #fff; }
+.rot-ic { width: 96px; height: 96px; fill: none; stroke: #ffc42e; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; animation: rotph 2.4s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(255,196,46,.7)); }
+@keyframes rotph { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+.rot-in b { font: italic 800 30px/1.1 "Barlow Condensed", "Tajawal", sans-serif; text-transform: uppercase; }
+.rot-in small { font: 600 15px/1.4 "Tajawal", system-ui, sans-serif; color: #ddd; max-width: 320px; }
+.st-snd { position: absolute; right: 18px; top: 18px; z-index: 4; padding: 8px 16px; border-radius: 99px; border: 2px solid #ffc42e; background: rgba(0,0,0,.6); color: #ffc42e; font: 800 15px "Barlow Condensed", "Tajawal", sans-serif; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -1575,7 +1587,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-var APP_BUILD = 'v62';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
+var APP_BUILD = 'v63';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { full: 'FULL BODY', half: 'HALF BODY' }, STANCE_NEXT = { full: 'half', half: 'full' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -4770,6 +4782,7 @@ try { Sfx.muted = localStorage.getItem('mb.snd') === '0'; } catch (e) { }
 Sfx.thunder = function () { try { this.noise(2.6, 'lowpass', 150, 0.32); this.noise(1.4, 'lowpass', 420, 0.12, 0.12); } catch (e) { } };        // distant thunder over the chapter 1 street
 try { Object.assign(DICTS.ar, { 'How much of your body should the fighter copy?': 'قد أيش من جسمك تبي المقاتل ينسخ؟', 'CONTINUE': 'متابعة', 'You can change this later in Settings (Game Settings).': 'تقدر تغيّرها بعدين من الإعدادات (إعدادات اللعبة).', 'Enable your camera to play': 'شغّل الكاميرا عشان تلعب', 'with your body movements': 'بحركات جسمك', 'ENABLE CAMERA': 'شغّل الكاميرا', 'TRY AGAIN': 'حاول مرة ثانية', 'PLEASE WAIT…': 'لحظة…', 'Pose is read on this device. No video is recorded or uploaded.': 'الحركة تُقرأ على جهازك فقط، وما يتم تسجيل أو رفع أي فيديو.', 'Camera permission was denied.': 'تم رفض إذن الكاميرا.', 'Choose Allow in the browser prompt…': 'اختر "سماح" في رسالة المتصفح…', 'Loading the pose model…': 'جاري تحميل نموذج الحركة…', 'You were invited to room': 'تمت دعوتك للغرفة' }); } catch (e) { }
 try { Object.assign(DICTS.ar, { 'BOSS': 'زعيم', 'STORY BOSS': 'زعيم القصة', 'DOON is a Story Mode boss. He cannot be played.': 'دون زعيم في وضع القصة، وما ينلعب فيه.', 'LOADING': 'جاري التحميل', 'TAP TO PLAY': 'اضغط للتشغيل', 'TO BE CONTINUED…': 'يتبع…', 'THE BREAKING POINT': 'نقطة الانكسار', 'CHAPTER 1': 'الفصل الأول', 'Story Mode could not load: ': 'ما قدرنا نحمّل وضع القصة: ' }); } catch (e) { }
+try { Object.assign(DICTS.ar, { 'Turn your phone sideways': 'لف جوالك بالعرض', 'BREAK ZONE is played in landscape. If it does not turn, switch off the rotation lock.': 'BREAK ZONE تنلعب بالعرض. إذا ما لفّت الشاشة، طفِّ قفل التدوير.', 'Tap for sound': 'اضغط للصوت' }); } catch (e) { }
 try { Object.assign(DICTS.ar, { 'STORY MODE': 'وضع القصة', 'ARCADE': 'أركيد', 'PLAY ONLINE': 'لعب أونلاين', 'TRAINING': 'تدريب', 'SETTINGS': 'الإعدادات', 'BACK': 'رجوع', 'GAME SETTINGS': 'إعدادات اللعبة', 'CAMERA': 'الكاميرا', 'SOUND': 'الصوت', 'PLAYER NAME': 'اسم اللاعب', 'LANGUAGE': 'اللغة', 'HOW TO PLAY': 'طريقة اللعب', 'MOTION MODE': 'نمط الحركة', 'HALF BODY': 'نصف الجسم', 'FULL BODY': 'الجسم كامل', 'FIGHT SETUP': 'إعداد القتال', 'FRONT CAMERA': 'الكاميرا الأمامية', 'REAR CAMERA (TV)': 'الكاميرا الخلفية (تلفزيون)', 'ON': 'يعمل', 'OFF': 'متوقف', 'Story Mode is coming soon.': 'وضع القصة قريباً.', 'Profile is coming soon.': 'الملف الشخصي قريباً.', 'Achievements are coming soon.': 'الإنجازات قريباً.', 'Loading Khalid…': 'جاري تحميل خالد…', 'CAMERA TYPE': 'نوع الكاميرا' }); } catch (e) { }
 try { Object.assign(DICTS.ar, { 'SELECT CHARACTER': 'اختر شخصيتك', 'CHOOSE YOUR FIGHTER': 'اختر مقاتلك', 'LIVE CAMERA': 'كاميرا مباشرة', 'MOTION TRACKING': 'التتبع الحركي', 'START': 'ابدأ', 'START GAME': 'ابدأ اللعبة', 'FIGHT SETUP': 'إعداد القتال', 'READY': 'جاهز', 'NEXT': 'التالي', 'REDO': 'إعادة', 'RESTART STEP': 'إعادة الخطوة', 'SKIP STEP': 'تخطي الخطوة', 'SKIP ALL': 'تخطي الكل', 'GET IN POSITION': 'خذ وضعيتك', 'RIGHT JABS': 'ضربات اليمين', 'LEFT JABS': 'ضربات اليسار', 'FAST COMBO': 'كومبو سريع', 'MOVE AND PUNCH': 'تحرك واضرب',
   'Stand so your head and both shoulders fill the frame, fists up. Hold still.': 'قف بحيث يملأ رأسك وكتفاك الإطار وقبضتاك مرفوعتان. اثبت.', 'Throw 3 straight punches with your RIGHT hand, at the camera.': 'اضرب 3 لكمات مستقيمة بيدك اليمين باتجاه الكاميرا.', 'Now 3 straight punches with your LEFT hand.': 'الحين 3 لكمات مستقيمة بيدك اليسار.', 'Quick: RIGHT, RIGHT, LEFT.': 'بسرعة: يمين، يمين، يسار.', 'Lean to your LEFT and throw a RIGHT punch. Twice.': 'ميّل لليسار واضرب بيدك اليمين. مرتين.', 'Did that go the way you wanted? NEXT keeps it. REDO throws it away and you try again.': 'طلعت مثل ما تبي؟ التالي يحفظها، وإعادة تلغيها وتعيد المحاولة.', 'Made this hand more sensitive. Try again.': 'رفعت حساسية هذي اليد. حاول مرة ثانية.',
@@ -4830,15 +4843,18 @@ var STORY = {
   ]
 };
 /* Called directly inside the STORY MODE tap: browsers only let a video play with sound after a tap, so the chapter's video element is created and started (then paused) here. */
-function storyUnlock(ch) {
+function storyUnlock(ch, light) {
   ch = ch || STORY.chapters[0];
   try {
+    if (STORY.vid) { if (!light && STORY.vid.preload !== 'auto') { STORY.vid.preload = 'auto'; try { STORY.vid.load(); } catch (e) { } } return; }      // already unlocked by an earlier touch: keep that element
     var v = STORY.vid = document.createElement('video');
-    v.setAttribute('playsinline', ''); v.playsInline = true; v.preload = 'auto'; v.controls = false; v.disableRemotePlayback = true;
+    v.setAttribute('playsinline', ''); v.playsInline = true; v.preload = light ? 'metadata' : 'auto'; v.controls = false; v.disableRemotePlayback = true;
     v.src = STORY.base + ch.files.intro; v.load();
     var pr = v.play(); if (pr && pr.then) pr.then(function () { v.pause(); try { v.currentTime = 0; } catch (e) { } }, function () { });
   } catch (e) { }
 }
+/* the player mostly uses the hand cursor, which is not a real touch for the browser: the first real touch anywhere unlocks the chapter video for sound */
+try { if (!/claude/.test(location.hostname)) document.addEventListener('pointerdown', function first(e) { if (!e.isTrusted) return; document.removeEventListener('pointerdown', first, true); storyUnlock(null, true); }, true); } catch (e) { }
 /* loads everything the chapter needs and reports 0..1: the loading art first, then the street, DOON's model (parsed into the 3D scene) and the video */
 function storyPrepare(ch, onProgress) {
   var parts = { img: 0, boss: 0, vid: 0 }, W8 = { img: 0.08, boss: 0.32, vid: 0.6 };
@@ -4896,22 +4912,30 @@ function StoryMode(props) {
     v.className = 'stv'; v.muted = false; v.controls = false; box.appendChild(v); try { v.currentTime = 0; } catch (e) { }
     function end() { go('fight'); }
     v.addEventListener('ended', end);
-    var p = v.play(); if (p && p.catch) p.catch(function () { setNeedTap(true); });
+    var p = v.play(); if (p && p.catch) p.catch(function () { v.muted = true; setNeedTap(true); var q = v.play(); if (q && q.catch) q.catch(function () { }); });      // no sound allowed yet: play muted, never stop and wait
     return function () { v.removeEventListener('ended', end); try { v.pause(); } catch (e) { } if (v.parentNode) v.parentNode.removeChild(v); };
   }, [phase]);
-  useEffect(function () { if (phase === 'fight') { ARENA.env = 'street'; K3.bossOn = true; CHAR.id = 'khalid'; } else { K3.bossOn = false; } }, [phase]);
+  useEffect(function () { if (props.onPhase) props.onPhase(phase); if (phase === 'fight') { ARENA.env = 'street'; K3.bossOn = true; CHAR.id = 'khalid'; } else { K3.bossOn = false; } }, [phase]);
   var body = null;
   if (phase === 'load') body = h(StoryCover, { src: STORY.base + ch.load },
     h('div', { className: 'st-load', style: Rz(470, 784, 745, 22) }, tr('LOADING') + '...'.slice(0, dot)),
     h('div', { className: 'st-bar', style: Rz(482, 818, 716, 46) }, h('i', { id: 'stbar' }), h('b')),
     err ? h('div', { className: 'st-err', role: 'alert', style: Rz(470, 700, 745, 70) }, tr('Story Mode could not load: ') + (err.message || err) + (location.protocol === 'https:' && /claude/.test(location.hostname) ? '' : ''), h('br'), h('button', { className: 'st-back', 'data-hand': '1', onClick: props.onExit }, tr('BACK'))) : null);
-  else if (phase === 'video') body = h('div', { className: 'stvbox', ref: vbox }, needTap ? h('button', { className: 'st-tap', 'data-hand': '1', onClick: function () { setNeedTap(false); var v = STORY.vid; if (v) { v.muted = false; v.play().catch(function () { v.muted = true; v.play(); }); } } }, tr('TAP TO PLAY')) : null);
+  else if (phase === 'video') body = h('div', { className: 'stvbox', ref: vbox }, needTap ? h('button', { className: 'st-snd', onClick: function () { setNeedTap(false); var v = STORY.vid; if (v) { v.muted = false; var q = v.play(); if (q && q.catch) q.catch(function () { v.muted = true; v.play(); }); } } }, '🔇 ' + tr('Tap for sound')) : null);
   else if (phase === 'fight') body = h(Match, { key: 'story-ch1', mode: 'story', tracker: props.tracker, input: props.input, debug: props.debug, onPause: props.onPause, onSettings: props.onSettings, onQuit: props.onExit, onEnd: function () { setFade(1); setTimeout(function () { setPhase('next'); }, 60); } });
   else body = h('div', { className: 'st-next' }, h('p', { className: 'st-ch' }, ch.name + ' · ' + tr(ch.title)), h('h2', null, tr('TO BE CONTINUED…')), h('button', { className: 'zb gold st-cont', 'data-hand': '1', onClick: props.onExit }, h('span', { className: 'zl' }, tr('CONTINUE'))));
   useEffect(function () { if (phase !== 'next') return; K3.bossOn = false; ARENA.env = 'gym'; var a = setTimeout(function () { setFade(0); }, 400), b = setTimeout(function () { props.onExit(); }, 9000); return function () { clearTimeout(a); clearTimeout(b); }; }, [phase]);      // the next cinematic is not made yet: back to the menu by itself
   return h('div', { className: 'story' }, body, h('div', { className: 'st-fade', style: { opacity: fade } }));
 }
 
+/* Phone held upright: the game is landscape only, so a BREAK ZONE screen asks to turn the phone (the game keeps running underneath, the camera request still works). */
+function RotateScreen() {
+  return h('div', { className: 'rot', role: 'alert' },
+    h('img', { className: 'rot-bg', src: BZ_ART.mm, alt: '' }),
+    h('div', { className: 'rot-in' },
+      h('svg', { className: 'rot-ic', viewBox: '0 0 64 64', 'aria-hidden': 'true' }, h('rect', { x: 22, y: 8, width: 20, height: 36, rx: 4 }), h('path', { d: 'M12 40a22 22 0 0 0 28 14M40 54l-6 2 2-6' })),
+      h('b', null, tr('Turn your phone sideways')), h('small', null, tr('BREAK ZONE is played in landscape. If it does not turn, switch off the rotation lock.'))));
+}
 /* PLAY ONLINE: random match (coming) or a private room. The server status is a small badge, nothing more. */
 function OnlineMenu(props) {
   var net = props.net, ui = useNet(net), st = net.state;
@@ -5974,6 +5998,7 @@ function App() {
   var s9 = useState(loadNetCfg), cfg = s9[0], setCfg = s9[1];
   var s10 = useState(null), mpRes = s10[0], setMpRes = s10[1];
   var s11 = useState(CAMPREF.v), camPref = s11[0], setCamPrefS = s11[1], switching = useRef(false), badFacing = useRef('');
+  var s15 = useState('load'), storyPh = s15[0], setStoryPh = s15[1];
   var s14 = useState(false), fcReview = s14[0], setFcReview = s14[1], celeNext = useRef('result'), pendingPlay = useRef(null), forceFc = useRef(false), s12 = useState(0), setVp = s12[1], s13 = useState(false), matchPaused = s13[0], setMatchPaused = s13[1];
   useEffect(function () {                                                      // follow rotation / resizing (landscape for a TV)
     var f = function () { setVp(function (n) { return n + 1; }); };
@@ -6022,7 +6047,7 @@ function App() {
     switching.current = true;
     tracker.setFacing(want).then(function (got) { if (got !== want) badFacing.current = want; forceFc.current = true; setCalibrated(false); setScreen('calibration'); }, function () { camOff(); }).then(function () { switching.current = false; });
   }, [want, camOn, mode, screen, camPref]);
-  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && (screen !== 'fightcal' || fcReview) && screen !== 'celebrate' && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search)) && (screen !== 'story' || matchPaused);
+  var cursorOn = camOn && mode === 'camera' && screen !== 'permission' && (screen !== 'fightcal' || fcReview) && screen !== 'celebrate' && screen !== 'mp' && (screen !== 'match' || matchPaused || /[?&]dev=1/.test(location.search)) && (screen !== 'story' || matchPaused || storyPh !== 'fight');
   var body;
   if (screen === 'lang') body = h(LangPick, { onPick: function (v) { setLang(v); setScreen('permission'); } });
   else if (screen === 'permission') body = h(Permission, {
@@ -6045,7 +6070,7 @@ function App() {
   else if (screen === 'settings') body = h(SettingsScreen, { camOn: camOn, cfg: cfg, onCfg: applyCfg, onMovement: function () { setScreen('tutorial'); }, onPunchTest: function () { setScreen('punchtest'); }, onFightCal: function () { setScreen('fightcal'); }, camPref: camPref, onCamPref: chooseCam, onLang: function () { setLang(nextLang()); bumpLang(function (n) { return n + 1; }); }, onHow: function () { setHowOpen(true); }, onCamOff: camOff, onBack: function () { setScreen('menu'); } });
   else if (screen === 'punchtest') body = h(PunchTest, { tracker: tracker, onBack: function () { setScreen('settings'); } });
   else if (screen === 'tutorial') body = h(Tutorial, { tracker: tracker, mode: 'settings', onDone: function () { setScreen('settings'); }, onProgress: function () { }, onBack: function () { setScreen('settings'); } });
-  else if (screen === 'story') body = h(StoryMode, { tracker: tracker, input: input, debug: mode === 'debug', onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, onExit: home });
+  else if (screen === 'story') body = h(StoryMode, { onPhase: setStoryPh, tracker: tracker, input: input, debug: mode === 'debug', onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, onExit: home });
   else if (screen === 'match') body = h(Match, { key: round, mode: gmode, tracker: tracker, input: input, onPause: setMatchPaused, onSettings: function () { setScreen('settings'); }, debug: mode === 'debug', onQuit: home, onEnd: function (r) { setResult(r); celeNext.current = 'result'; if (r && r.mode === 'arcade') { setScreen('arcover'); return; } setScreen(r && r.outcome === 'win' && !(mode === 'debug') && K3.status === 'ready' ? 'celebrate' : 'result'); } });
   else body = h(Result, { result: result, tracker: tracker, camOn: camOn && mode === 'camera', debug: mode === 'debug', onAgain: function () { play(); }, onHome: home });
   /* TV / landscape: the phone sideways (or TV mode on). Menus keep their portrait layout, scaled to the full height of the screen and centred on a blurred copy of the street photo,
@@ -6056,10 +6081,10 @@ function App() {
   if (stage && !full && !own) { var sc = Math.min(vh / 700, vw / 390); content = h('div', { className: 'stagebox', style: { width: 390, height: 700, transform: 'scale(' + sc + ')', left: (vw - 390 * sc) / 2, top: (vh - 700 * sc) / 2 } }, body); }
   var bgUrl = typeof ARENA_WIDE_B64 !== 'undefined' && landscape ? 'url(data:' + (typeof ARENA_WIDE_MIME !== 'undefined' ? ARENA_WIDE_MIME : 'image/jpeg') + ';base64,' + ARENA_WIDE_B64 + ')' : typeof ARENA_BG_B64 !== 'undefined' ? 'url(data:' + (typeof ARENA_BG_MIME !== 'undefined' ? ARENA_BG_MIME : 'image/png') + ';base64,' + ARENA_BG_B64 + ')' : 'none';
   if (!full) content = h('div', { className: 'fgm' }, content);
-  return h(React.Fragment, null, !full ? h(NeonBg, { cls: 'bgm' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null);
+  return h(React.Fragment, null, !full ? h(NeonBg, { cls: 'bgm' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null, vw < vh ? h(RotateScreen, null) : null);
 }
 
-window.__MB = { setW: function (w) { setFrameW(w); }, arcProject: arcProject, arcLaneGeom: arcLaneGeom, arcLaneHit: arcLaneHit, warnSprite: warnSprite, roomPaint: roomPaint, ROOM: ROOM, OWNED: OWNED, PREMIUM: PREMIUM, charFree: charFree, UI: { StoryMode: StoryMode, BodyChoice: BodyChoice, CalLand: CalLand, BzChar: BzChar, BzMenu: BzMenu, BzSettings: BzSettings, CharSelect: CharSelect, ArcOver: ArcOver, App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
+window.__MB = { setW: function (w) { setFrameW(w); }, arcProject: arcProject, arcLaneGeom: arcLaneGeom, arcLaneHit: arcLaneHit, warnSprite: warnSprite, roomPaint: roomPaint, ROOM: ROOM, OWNED: OWNED, PREMIUM: PREMIUM, charFree: charFree, UI: { RotateScreen: RotateScreen, StoryMode: StoryMode, BodyChoice: BodyChoice, CalLand: CalLand, BzChar: BzChar, BzMenu: BzMenu, BzSettings: BzSettings, CharSelect: CharSelect, ArcOver: ArcOver, App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
