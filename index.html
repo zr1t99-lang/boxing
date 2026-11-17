@@ -1524,7 +1524,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-var APP_BUILD = 'v59';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
+var APP_BUILD = 'v60';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { full: 'FULL BODY', half: 'HALF BODY' }, STANCE_NEXT = { full: 'half', half: 'full' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -1633,18 +1633,28 @@ GestureEngine.prototype._note = function (label, t, type, side, conf, ptype) {
 /* One arm: continuous pose for the avatar, plus the punch state machine
    GUARD -> WINDUP -> STRIKE -> RECOVERY -> READY. Returns the punch type ('jab', 'cross', 'hook', 'upper') on the one frame a punch is registered, else null.
    One physical punch = one event: after the event the hand must come back (RECOVERY) and settle (READY) before another can start. */
+/* Depth of an arm bone from foreshortening. The 3D landmarks give reliable left/right and up/down, but their depth is compressed: a fist driven at the camera looks only slightly closer.
+   The real bone length is known (the longest the bone has looked lately), so how much shorter it looks in the picture plane says how far it points toward (or away from) the camera. */
+function fsDir3(a, key, P0, P1, swW) {
+  var dx = -(P1.x - P0.x), dy = P1.y - P0.y, dz = -(P1.z - P0.z), n = Math.hypot(dx, dy, dz);
+  var Lk = a[key] = Math.min(Math.max((a[key] || 0) * 0.9993, n), swW * 1.4), pl = Math.hypot(dx, dy);
+  var est = Math.max(0, Math.sqrt(Math.max(0, Lk * Lk - pl * pl)) - 0.12 * Lk);              // small dead zone: an arm in the picture plane stays there
+  var sg = dz < -0.35 * Lk ? -1 : 1;                                                           // boxing: a shortened arm points forward unless the data clearly says backward
+  var z = sg * Math.max(Math.abs(dz) * 1.2, est), m = Math.hypot(dx, dy, z) || 1;
+  return [dx / m, dy / m, z / m];
+}
 GestureEngine.prototype._arm = function (s, L, sw, t) {
   var P = CFG.punch, sens = SETTINGS.punch * ((this.handSens && this.handSens[s]) || 1), a = this.arms[s], f = this.feat, sg = s === 'R' ? 1 : -1;
   var idx = s === 'R' ? [12, 14, 16, 20, 18] : [11, 13, 15, 19, 17];
   var S = L[idx[0]], E = L[idx[1]], Wr = L[idx[2]], Fi = L[idx[3]], Pk = L[idx[4]];
-  a.vis = E.v > CFG.visMin && (s === 'R' ? f.visRW : f.visLW);
+  a.vis = (E.v > CFG.visMin || (E.v > 0.12 && Wr.v > 0.6)) && (s === 'R' ? f.visRW : f.visLW);      // a fist driven at the lens hides its own elbow: the arm stays tracked while the wrist is clearly seen
   if (!a.vis) { a.hist.length = 0; a.st = 'GUARD'; a.conf = 0; a.v = 0; a.onC = 0; a.offC = 0; a.dOnC = 0; a.hold = t + P.lossMs; return null; }     // tracking loss: reset and ignore the first frames after it returns
   if (a.first == null) { a.first = t; a.hold = Math.max(a.hold, t + P.warmMs); }                // the filters need a moment to settle after the tracker starts
   var ang = angleAt(E, S, Wr), reach = dist(Wr, S) / sw, zr = (S.Z - Wr.Z) / sw;
   var w3 = this.hasW ? this.wl : null, r3 = -1, e3 = -1, fz = 0;
   if (w3) { var sS = w3[idx[0]], eE = w3[idx[1]], wW = w3[idx[2]], swW = Math.max(0.05, d3(w3[11], w3[12])), uA = d3(sS, eE), fA = d3(eE, wW), sW = d3(sS, wW); r3 = sW / swW; e3 = sW / Math.max(0.05, uA + fA); fz = (sS.z - wW.z) / swW; a.z1 = (sS.z - eE.z) / swW; a.z2 = (eE.z - wW.z) / swW; } else { a.z1 = null; a.z2 = null; }
   a.u3 = null; a.f3 = null;
-  if (w3 && E.v > 0.4 && Wr.v > 0.4) { var sS3 = w3[idx[0]], eE3 = w3[idx[1]], wW3 = w3[idx[2]]; if (sS3 && eE3 && wW3 && sS3.x !== undefined && eE3.x !== undefined && wW3.x !== undefined) { var n1 = d3(sS3, eE3), n2 = d3(eE3, wW3); if (n1 > 0.05 && n2 > 0.05) { a.u3 = [-(eE3.x - sS3.x) / n1, (eE3.y - sS3.y) / n1, -(eE3.z - sS3.z) / n1]; a.f3 = [-(wW3.x - eE3.x) / n2, (wW3.y - eE3.y) / n2, -(wW3.z - eE3.z) / n2]; } } }      // metric arm directions in the player's frame (x right, y down, z toward the camera)
+  if (w3 && E.v > 0.12 && Wr.v > 0.4) { var sS3 = w3[idx[0]], eE3 = w3[idx[1]], wW3 = w3[idx[2]]; if (sS3 && eE3 && wW3 && sS3.x !== undefined && eE3.x !== undefined && wW3.x !== undefined) { var n1 = d3(sS3, eE3), n2 = d3(eE3, wW3); if (n1 > 0.05 && n2 > 0.05) { a.u3 = fsDir3(a, 'Lu', sS3, eE3, swW); a.f3 = fsDir3(a, 'Lf', eE3, wW3, swW); } } }      // metric arm directions in the player's frame (x right, y down, z toward the camera)
   var hs = -1;
   if (Fi && Pk && Fi.v > CFG.visMin && Pk.v > CFG.visMin) hs = (dist(Wr, Fi) + dist(Wr, Pk)) / 2 / sw;     // hand size in the image: grows as the fist nears the lens
   var rx = (Wr.X - S.X) / sw, ry = (Wr.Y - S.Y) / sw;
@@ -1812,6 +1822,18 @@ GestureEngine.prototype.update = function (raw, vw, vh, t, world) {
   else if (f.bodyMode === 'full' && this.fbOff >= 18) f.bodyMode = 'upper';                            // about 0.6 s without them
   else if (!f.bodyMode) f.bodyMode = 'upper';
   f.leanVis = f.lean; f.legs = null; f.hop = 0; f.hipDrop = 0; f.depth = 0; f.mim = null;
+  f.twist = null; f.hyaw = null;
+  if (this.hasW && this.wl) {                                                                          // shoulder line and ear line in 3D: how far the player turns the trunk and the head (depth again helped by foreshortening)
+    var WW = this.wl, self = this, turn = function (pa, pb, key, cap) {
+      if (!pa || !pb || pa.x === undefined || pb.x === undefined) return null;
+      var sx = -(pb.x - pa.x), sz = -(pb.z - pa.z); if (sx < 0.02) return null;
+      var Wd = self[key] = Math.min(Math.max((self[key] || 0) * 0.9993, sx), cap), fs = Math.sqrt(Math.max(0, Wd * Wd - sx * sx)) - 0.12 * Wd;
+      var zz = (sz < 0 ? -1 : 1) * Math.max(Math.abs(sz) * 1.25, fs);
+      return Math.atan2(zz, sx);
+    };
+    f.twist = turn(WW[11], WW[12], 'shWmax', 0.6);
+    var hy = turn(WW[7], WW[8], 'earWmax', 0.3); f.hyaw = hy == null ? null : hy;
+  }
   if (f.bodyMode === 'full' && fbSeen) {
     var hipY = (HL.Y + HR.Y) / 2, hipX = (HL.X + HR.X) / 2, thigh = Math.max(sw * 0.6, (Math.hypot(KL.X - HL.X, KL.Y - HL.Y) + Math.hypot(KR.X - HR.X, KR.Y - HR.Y)) / 2);
     if (this.baseHipY == null) this.baseHipY = hipY; else if (Math.abs(hipY - this.baseHipY) / thigh < 0.04) this.baseHipY += (hipY - this.baseHipY) * 0.02;
@@ -1970,7 +1992,7 @@ Tracker.prototype.getUpper = function () {
     roll: tracking ? f.roll : 0,
     head: tracking ? f.head : 0, dodge: tracking ? f.dodge : null,
     R: arm(e.arms.R, 1), L: arm(e.arms.L, -1),
-    legs: tracking && f.bodyMode === 'full' ? f.legs : null, walk: tracking && f.bodyMode === 'full' ? f.hipDx : 0, hop: tracking && f.bodyMode === 'full' ? f.hop : 0, hipDrop: tracking && f.bodyMode === 'full' ? f.hipDrop : 0, mim: tracking && f.bodyMode === 'full' ? f.mim : null, depth: tracking && f.bodyMode === 'full' ? f.depth : 0,
+    legs: tracking && f.bodyMode === 'full' ? f.legs : null, walk: tracking && f.bodyMode === 'full' ? f.hipDx : 0, hop: tracking && f.bodyMode === 'full' ? f.hop : 0, hipDrop: tracking && f.bodyMode === 'full' ? f.hipDrop : 0, mim: tracking && f.bodyMode === 'full' ? f.mim : null, twist: tracking ? f.twist : null, hyaw: tracking ? f.hyaw : null, depth: tracking && f.bodyMode === 'full' ? f.depth : 0,
     vis: { ls: f.visLS, rs: f.visRS, lw: f.visLW, rw: f.visRW, shoulders: f.visLS && f.visRS, all: f.visLS && f.visRS && f.visLW && f.visRW }
   };
 };
@@ -2399,6 +2421,7 @@ var KRig = (function () {
     var iHips = rig.idx.Hips, iSp = [rig.idx.Spine, rig.idx.Spine1, rig.idx.Spine2], iNeck = rig.idx.Neck, iHead = rig.idx.Head;
     var MM = o.mimic && o.mimic.w > 0.01 ? o.mimic : null, mw = MM ? cl(MM.w, 0, 1) : 0, mRoll = 0, mPitch = 0, mYaw = 0;
     if (MM) { var tr = MM.tr; mRoll = cl(Math.atan2(tr[0], -tr[1]), -0.8, 0.8); mPitch = cl(Math.atan2(tr[2], -tr[1]), -0.5, 1.1); mYaw = cl(Math.atan2(mir * MM.sz, Math.max(0.05, MM.sx)), -0.9, 0.9); }       // the trunk of the player: side lean, forward bend and shoulder twist, copied
+    var TW = o.twist && o.twist.w > 0.01 ? o.twist : null, tww = TW ? cl(TW.w, 0, 1) : 0, tYaw = TW ? cl(TW.y * mir, -1.1, 1.1) : 0, hTurn = TW ? cl(((TW.h != null ? TW.h : TW.y) - TW.y) * mir, -0.9, 0.9) : 0;      // shoulder twist and head turn, both copied
     var lean = cl(o.x || 0, -1.3, 1.3) * (o.leanK || 0.52) * mir; lean = lean * (1 - mw) + mRoll * mir * mw;     // about 30 degrees at full lean; rotation about +Z moves the head toward world -X
     var roll = cl(o.roll || 0, -0.5, 0.5) * mir;
     var duck = cl(o.duck || 0, 0, 1) * (1 - mw), idle = Math.sin((o.time || 0) * 1.9) * 0.012 * (1 - mw);
@@ -2451,10 +2474,11 @@ var KRig = (function () {
     var s;
     for (s = 0; s < 3; s++) {
       var tired = cl(o.tired || 0, 0, 1), heave = tired * Math.sin((o.time || 0) * 5.5) * 0.02;
-      var rz = leanW / 3 + (s === 2 ? roll : 0) * 1.0, rx = (duck * 0.55 + tired * 0.16 + cl(o.dip || 0, 0, 1) * 0.3) / 3 + idle / 3 + heave - fall * 0.45 + mPitch * mw / 3, ry = ((o.yaw || 0) * (1 - 0.6 * mw) + mYaw * mw) / 3;
+      var rz = leanW / 3 + (s === 2 ? roll : 0) * 1.0, rx = (duck * 0.55 + tired * 0.16 + cl(o.dip || 0, 0, 1) * 0.3) / 3 + idle / 3 + heave - fall * 0.45 + mPitch * mw / 3, ry = tww > 0 ? ((o.yaw || 0) * (1 - 0.6 * tww) + tYaw * tww) / 3 : ((o.yaw || 0) * (1 - 0.6 * mw) + mYaw * mw) / 3;
       addWorldRot(rig, iSp[s], qmul(qmul(qaxis([0, 1, 0], ry), qaxis([0, 0, 1], rz)), qaxis([1, 0, 0], rx)));
       rig.fk(iSp[s]);
     }
+    if (tww > 0 && Math.abs(hTurn) > 0.01) { addWorldRot(rig, iNeck, qaxis([0, 1, 0], hTurn * tww)); rig.fk(iNeck); }
     addWorldRot(rig, iNeck, qmul(qaxis([0, 0, 1], -leanW * 0.45 - roll * 0.5 + cl(o.head || 0, -0.6, 0.6) * 0.5 * mir), qaxis([1, 0, 0], -duck * 0.2 + cl(o.tired || 0, 0, 1) * 0.22)));   // tired: the head hangs a little
     rig.fk(iNeck);
     var dk = duck * (1 - legW);
@@ -2754,8 +2778,15 @@ LegStance.prototype.update = function (pelvisX, ankleX, ankleY, dt) {
   this.x += step > cap ? cap : step < -cap ? -cap : step;
   return this.x;
 };
+/* arm direction smoothing that adapts to speed: very calm when the arm is still (no jitter), almost instant during a punch */
+function smoothDir(cur, tg, dt) {
+  if (!cur) return tg.slice();
+  var d = Math.hypot(tg[0] - cur[0], tg[1] - cur[1], tg[2] - cur[2]), sp = d / Math.max(dt, 1e-3), k = 1 - Math.exp(-dt * (9 + Math.min(48, sp * 9)));
+  var v = [cur[0] + (tg[0] - cur[0]) * k, cur[1] + (tg[1] - cur[1]) * k, cur[2] + (tg[2] - cur[2]) * k], m = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / m, v[1] / m, v[2] / m];
+}
 function k3Opts(G, time) {
-  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: 0, leanK: 0.72, legs: p.leg, legW: p.legW, walk: p.walk, zwalk: p.zw, hipDrop: p.hd, gaitA: p.gaitA, gaitP: p.gaitP, mimic: p.mimW > 0.01 ? { w: p.mimW, tr: p.mim.tr, sx: p.mim.sx, sz: p.mim.sz } : null };      // the feet stay planted: only the upper body leans (no sliding of the whole fighter)
+  var p = G.p, rig = K3.rig, o = { x: p.x / 170, duck: p.duck, roll: p.roll, head: p.head, block: p.block, tired: G.pTired || 0, mirror: VIEWS[K3.view].mirror, time: time, arms: {}, acc: [], shift: 0, leanK: 0.72, legs: p.leg, legW: p.legW, walk: p.walk, zwalk: p.zw, hipDrop: p.hd, gaitA: p.gaitA, gaitP: p.gaitP, mimic: p.mimW > 0.01 ? { w: p.mimW, tr: p.mim.tr, sx: p.mim.sx, sz: p.mim.sz } : null, twist: p.twW > 0.01 ? { w: p.twW, y: p.tw, h: p.hy } : null };      // the feet stay planted: only the upper body leans (no sliding of the whole fighter)
   if (p.punch && p.punch !== K3.lastPunch) { K3.lastPunch = p.punch; K3.jab = { side: p.punch.side, t0: time, kind: p.punch.type }; K3.boost[p.punch.side] = time; K3.kind[p.punch.side] = p.punch.type || 'jab'; }
   if (!p.punch) K3.lastPunch = null;
   if (p.hurt > K3.lastHurt + 0.2) K3.hit = { t0: time };
@@ -3253,7 +3284,7 @@ function stepGame(G, dt, input, fx) {
     a.out += (T.out - a.out) * k20; a.up += (T.up - a.up) * k20; a.eout += (T.eout - a.eout) * k20; a.eup += (T.eup - a.eup) * k20; a.ext += (T.ext - a.ext) * k20;
     if (t) { a.wrx += (t.wrx - a.wrx) * k30; a.wry += (t.wry - a.wry) * k30; a.erx += (t.erx - a.erx) * k30; a.ery += (t.ery - a.ery) * k30;
       if (t.z1 != null && t.z2 != null) { a.z1 = a.z1 == null ? t.z1 : a.z1 + (t.z1 - a.z1) * k30; a.z2 = a.z2 == null ? t.z2 : a.z2 + (t.z2 - a.z2) * k30; } else { a.z1 = null; a.z2 = null; }
-      if (t.u3 && t.f3) { a.u3 = a.u3 ? [a.u3[0] + (t.u3[0] - a.u3[0]) * k30, a.u3[1] + (t.u3[1] - a.u3[1]) * k30, a.u3[2] + (t.u3[2] - a.u3[2]) * k30] : t.u3.slice(); a.f3 = a.f3 ? [a.f3[0] + (t.f3[0] - a.f3[0]) * k30, a.f3[1] + (t.f3[1] - a.f3[1]) * k30, a.f3[2] + (t.f3[2] - a.f3[2]) * k30] : t.f3.slice(); a.m3 = 1; } else a.m3 = 0; } else a.m3 = 0;
+      if (t.u3 && t.f3) { a.u3 = smoothDir(a.u3, t.u3, dt); a.f3 = smoothDir(a.f3, t.f3, dt); a.m3 = 1; } else a.m3 = 0; } else a.m3 = 0;
   });
   { var lw = ub.legs ? 1 : 0; p.legW += (lw - p.legW) * Math.min(1, dt * 5);                                  // legs: followed only while the camera really sees them
     var kL = 1 - Math.exp(-dt * 30), vec = function (cur, tg) { if (!tg) return null; if (!cur) return tg.slice(); return [cur[0] + (tg[0] - cur[0]) * kL, cur[1] + (tg[1] - cur[1]) * kL, cur[2] + (tg[2] - cur[2]) * kL]; };
@@ -3267,6 +3298,9 @@ function stepGame(G, dt, input, fx) {
       p.walk += clamp(clamp(gx, -0.9, 0.9) - p.walk, -2.5 * dt, 2.5 * dt); p.gaitA = 0; p.gaitP = 0;
       p.zw += clamp((clamp((ub.depth || 0) * 2.5, -0.6, 0.7) - p.zw) * (1 - Math.exp(-dt * 10)), -2 * dt, 2 * dt);       /* a real step toward the camera is a step toward the opponent: the fighter mirrors you */
       p.hd += (Math.max(0, ub.hipDrop || 0) - p.hd) * (1 - Math.exp(-dt * 20));                              // squats lower the body; the fighter never leaves the floor
+    { var tk = 1 - Math.exp(-dt * 12); p.twW = p.twW || 0; p.tw = p.tw || 0; p.hy = p.hy || 0;                   // trunk twist and head turn, smoothed
+      if (ub.twist != null) { p.tw += (ub.twist - p.tw) * tk; p.twW += (1 - p.twW) * Math.min(1, dt * 5); } else { p.twW += (0 - p.twW) * Math.min(1, dt * 5); p.tw *= Math.exp(-dt * 3); }
+      if (ub.hyaw != null) p.hy += (ub.hyaw - p.hy) * tk; else p.hy += (p.tw - p.hy) * tk; }
     { var mm = ub.mim, mk = Math.min(1, dt * 16); p.mimW += ((mm ? 1 : 0) - p.mimW) * Math.min(1, dt * 5); if (mm) { p.mim.tr = [p.mim.tr[0] + (mm.tr[0] - p.mim.tr[0]) * mk, p.mim.tr[1] + (mm.tr[1] - p.mim.tr[1]) * mk, p.mim.tr[2] + (mm.tr[2] - p.mim.tr[2]) * mk]; p.mim.sx += (mm.sx - p.mim.sx) * mk; p.mim.sz += (mm.sz - p.mim.sz) * mk; } }
     if (!ub.legs) { p.walk *= Math.exp(-dt * 3); p.zw *= Math.exp(-dt * 3); p.hd *= Math.exp(-dt * 6); }
     } }
