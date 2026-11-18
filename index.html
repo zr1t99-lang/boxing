@@ -1587,7 +1587,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-var APP_BUILD = 'v63';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
+var APP_BUILD = 'v64';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { full: 'FULL BODY', half: 'HALF BODY' }, STANCE_NEXT = { full: 'half', half: 'full' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -2617,7 +2617,7 @@ var VIEWS = {
   front: { pos: [0.0, 2.45, 3.9], tgt: [0, 1.8, 0], fov: 32, mirror: true, label: 'FRONT' }
 };
 var ZOUT = { pos: [-0.5, 2.9, -5.5], tgt: [-0.05, 1.4, 0.59], fov: 37 };
-var K3 = { zoom: 1, zoomT: 1, ZMIN: 0.5, ZMAX: 2.2, zoomOn: false, status: 'idle', error: '', view: 'back', rig: null, bones: null, renderer: null, scene: null, camera: null, canvas: null, promise: null, dpr: 0,
+var K3 = { lockZoom: true, zoom: 1, zoomT: 1, ZMIN: 0.5, ZMAX: 2.2, zoomOn: false, status: 'idle', error: '', view: 'back', rig: null, bones: null, renderer: null, scene: null, camera: null, canvas: null, promise: null, dpr: 0,
            lastPunch: null, jab: null, hit: null, lastHurt: 0, boost: { R: -99, L: -99 }, kind: { R: 'jab', L: 'jab' },
            opp: null, oppStatus: 'idle', oppError: '' };
 /* ONE arena for every mode: a real 3D purple room (back wall with two light strips, darker side walls, pink-white ceiling with light bars,
@@ -2983,6 +2983,7 @@ K3.draw = function (ctx, G, time, noRoom) {
     var land = W > 480, kz = land ? LANDZ : 1, kx = land ? W / 2 - W / (2 * kz) : 0, ky = land ? LANDY0 : 0;
     var ck = K3.view === 'back' && !land ? 'backP' : K3.view;
     var fx = K3.follow || 0;
+    if (K3.lockZoom) { K3.zoomOn = true; K3.zoomT = K3.zoom = K3.ZMIN; }           // every mode (training, arcade, online, story) uses the same full view: both fighters, boots and floor
     K3.zoom = (K3.zoom || 1) + ((K3.zoomT || 1) - (K3.zoom || 1)) * 0.25; if (Math.abs(K3.zoom - (K3.zoomT || 1)) < 0.002) K3.zoom = K3.zoomT || 1;      // pinch zoom (match only): ZMIN = the full view (both fighters, boots and ring), 1 = the close view, ZMAX = on the opponent
     var zm = (ck === 'front' || !K3.zoomOn) ? 1 : K3.zoom, zt = Math.min(1, Math.max(0, (zm - 1) / (K3.ZMAX - 1))), zu = Math.min(1, Math.max(0, (1 - zm) / (1 - K3.ZMIN)));
     if (K3.camKey !== ck || K3.camFx !== fx || K3.camZ !== zm) { var VV = VIEWS[ck]; K3.camKey = ck; K3.camFx = fx; K3.camZ = zm;
