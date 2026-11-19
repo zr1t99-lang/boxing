@@ -1587,7 +1587,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-var APP_BUILD = 'v64';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
+var APP_BUILD = 'v65';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { full: 'FULL BODY', half: 'HALF BODY' }, STANCE_NEXT = { full: 'half', half: 'full' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -2680,7 +2680,7 @@ K3.buildRoom = function (scene) {
    then enlarged around that point only as much as needed to cover the whole view. The fighters are lit like the photo (warm sun from the windows, dim warm fill). */
 var GYM = { x: 0.501, y: 0.70, pr: 0.24 }, STREET = { x: 0.5, y: 0.80, pr: 0.2 };          // where the opponent stands in each arena photo, and how tall a person is there
 K3.look = function (name) {
-  var L = K3.lights; if (!L || K3.lookName === name) return; K3.lookName = name;
+  var L = K3.lights; if (!L || K3.lookName === name || !L.hemi || !L.hemi.color || !L.key || !L.key.color || !L.rim || !L.rim.color) return; K3.lookName = name;
   if (name === 'gym') { L.hemi.color.setHex(0xffe6c0); L.hemi.groundColor.setHex(0x2a2116); L.hemi.intensity = 0.85; L.key.color.setHex(0xffe2bd); L.key.intensity = 1.3; L.rim.color.setHex(0xffc463); L.rim.intensity = 1.15; L.rim.position.set(-4, 4.5, 6); }
   else if (name === 'night') { L.hemi.color.setHex(0x8fa3c8); L.hemi.groundColor.setHex(0x14161f); L.hemi.intensity = 0.7; L.key.color.setHex(0xffb766); L.key.intensity = 1.25; L.rim.color.setHex(0xb07bff); L.rim.intensity = 1.0; L.rim.position.set(-3, 3.5, 5); }      // rainy street: cold sky, orange street lamps, DOON's purple rim
   else { L.hemi.color.setHex(0xffffff); L.hemi.groundColor.setHex(0x3a3f66); L.hemi.intensity = 0.95; L.key.color.setHex(0xfff1dd); L.key.intensity = 1.6; L.rim.color.setHex(0x7aa2ff); L.rim.intensity = 0.7; L.rim.position.set(-2, 2, 3); }
@@ -2857,6 +2857,39 @@ K3.applyMap = function (E, rig) {                                    // the same
   }
   E.bones[0].position.set(M.nHips[0] + rig.hips[0] - M.kHips[0], M.nHips[1] + rig.hips[1] - M.kHips[1], M.nHips[2] + rig.hips[2] - M.kHips[2]);
 };
+/* DOON's punches and hit reactions are real motion-capture clips (Mixamo: jabs, hooks, uppercut, hit reaction from the supplied animation file),
+   converted offline to rotations relative to the rest pose so they fit DOON's own bones. Each clip is started so its contact frame lands exactly on the impact frame of the attack. */
+K3.bossClips = null;
+K3.loadBossClips = function (J) {
+  var names = DOON_MAP.names, at = {}, i, out = { idx: [], clips: {} };
+  names.forEach(function (n, j) { at[n.replace('mixamorig:', '')] = j; });
+  for (i = 0; i < J.bones.length; i++) out.idx.push(at[J.bones[i]] != null ? at[J.bones[i]] : -1);
+  Object.keys(J.clips).forEach(function (k) { var c = J.clips[k]; out.clips[k] = { n: c.n, dur: c.dur, contact: c.contact, q: new Float32Array(c.q), hip: new Float32Array(c.hip) }; });
+  out.nb = J.bones.length; out.of = {}; out.idx.forEach(function (j, b) { if (j >= 0) out.of[j] = b; });
+  K3.bossClips = out; return out;
+};
+K3.poseBoss = function (E, rig, req, gt) {
+  var C = K3.bossClips, c = req && C ? C.clips[req.name] : null, w = 0, t = 0;
+  if (c) { var tv = gt - req.t0; t = req.off + tv; var end = req.end != null ? req.end : c.dur; w = Math.min(1, Math.max(0, tv / 0.1), Math.max(0, (end - t) / 0.22)) * (req.w || 1); if (t < 0) t = 0; if (t > c.dur) t = c.dur; }
+  if (w <= 0.001) { K3.applyMap(E, rig); return false; }
+  var M = E.map, Q = KRig.Q, ord = M.order, W = E.W, HR = rig.idx.RightHand, HL = rig.idx.LeftHand, fr = t * 30, f0 = Math.min(c.n - 1, Math.floor(fr)), f1 = Math.min(c.n - 1, f0 + 1), u = fr - f0, nb = C.nb;
+  var o, j, k, p, pw, wj, lj, l, b, dp, dc;
+  function cq(b) { var a = (f0 * nb + b) * 4, z = (f1 * nb + b) * 4, q = c.q, s = (q[a] * q[z] + q[a + 1] * q[z + 1] + q[a + 2] * q[z + 2] + q[a + 3] * q[z + 3]) < 0 ? -1 : 1;
+    return [q[a] + (s * q[z] - q[a]) * u, q[a + 1] + (s * q[z + 1] - q[a + 1]) * u, q[a + 2] + (s * q[z + 2] - q[a + 2]) * u, q[a + 3] + (s * q[z + 3] - q[a + 3]) * u]; }
+  function mix(a, d) { var s = (a[0] * d[0] + a[1] * d[1] + a[2] * d[2] + a[3] * d[3]) < 0 ? -1 : 1, r = [a[0] + (s * d[0] - a[0]) * w, a[1] + (s * d[1] - a[1]) * w, a[2] + (s * d[2] - a[2]) * w, a[3] + (s * d[3] - a[3]) * w], m = Math.hypot(r[0], r[1], r[2], r[3]) || 1; return [r[0] / m, r[1] / m, r[2] / m, r[3] / m]; }
+  for (o = 0; o < ord.length; o++) {
+    j = ord[o]; p = M.par[j]; pw = p < 0 ? [0, 0, 0, 1] : W[p]; k = M.map[j]; b = C.of[j];
+    if (k >= 0) {
+      if ((k === HR || k === HL) && M.bindQ[j]) dp = Q.mul(Q.mul(pw, M.bindQ[j]), Q.inv(M.n0[j])); else dp = Q.mul(rig.wq[k], M.invK0[j]);      // the solver's rotation for this bone (hands: straight wrists)
+      dc = b != null ? mix(dp, cq(b)) : dp;
+      wj = Q.mul(dc, M.n0[j]); l = Math.hypot(wj[0], wj[1], wj[2], wj[3]) || 1; W[j] = [wj[0] / l, wj[1] / l, wj[2] / l, wj[3] / l]; lj = Q.mul(Q.inv(pw), W[j]);
+    } else { lj = M.curl && M.curl[j] ? M.curl[j] : M.bindQ[j]; W[j] = Q.mul(pw, lj); }
+    E.bones[j].quaternion.set(lj[0], lj[1], lj[2], lj[3]).normalize();
+  }
+  var hx = c.hip[f0 * 3] + (c.hip[f1 * 3] - c.hip[f0 * 3]) * u, hy = c.hip[f0 * 3 + 1] + (c.hip[f1 * 3 + 1] - c.hip[f0 * 3 + 1]) * u, hz = c.hip[f0 * 3 + 2] + (c.hip[f1 * 3 + 2] - c.hip[f0 * 3 + 2]) * u;
+  E.bones[0].position.set(M.nHips[0] + rig.hips[0] - M.kHips[0] + hx * w, M.nHips[1] + rig.hips[1] - M.kHips[1] + hy * w, M.nHips[2] + rig.hips[2] - M.kHips[2] + Math.max(-0.1, Math.min(0.4, hz)) * w);      // the lunge of a jab carries him forward
+  return true;
+};
 K3.setView = function (v) {
   K3.view = VIEWS[v] && v !== 'backP' ? v : 'back'; K3.camKey = null;
   var V = VIEWS[K3.view];
@@ -2930,6 +2963,7 @@ function k3Opts(G, time) {
 }
 /* The AI fighter is driven by the game state, never by the camera. Same rig, same solver, independent skeleton. */
 var OPP = { x: -0.13, z: 2.4 };
+function setOppDist(z) { OPP.z = z; try { if (K3.opp && K3.opp.group) K3.opp.group.position.z = z; } catch (e) { } }      // Story Mode: DOON fights at close range
 function k3OptsOpp(G, time) {
   var a = G.a, S = K3.opp.st, rig = K3.opp.rig, o = { x: 0, duck: 0, roll: 0, head: 0, block: 0, tired: G.aTired || 0, mirror: false, time: time, arms: { R: { w: 0 }, L: { w: 0 } }, acc: [] };
   var calm = a.state === 'idle' || a.state === 'recover' || a.state === 'guard';
@@ -3019,7 +3053,7 @@ K3.draw = function (ctx, G, time, noRoom) {
         var bossShow = K3.bossOn && K3.boss && K3.boss.ready;                    // Story Mode: DOON takes the opponent's place and moves exactly like it
         if (K3.opp.root) K3.opp.root.visible = !bossShow;
         if (K3.boss && K3.boss.root) K3.boss.root.visible = !!bossShow;
-        if (bossShow) K3.applyMap(K3.boss, r2);
+        if (bossShow) K3.poseBoss(K3.boss, r2, G && G.a && G.a.clip, G ? G.t : 0);
       }
     }
     if (!noRoom && ARENA.gymOK !== false) { var gy = false; try { gy = drawGym(ctx, kx - STX, ky - STY, W / kz, H / kz); } catch (e) { ARENA.gymOK = false; } if (gy && K3.room) K3.room.visible = false; K3.look(gy ? (ARENA.env === 'street' ? 'night' : 'gym') : 'default'); } else K3.look('default');
@@ -3078,7 +3112,7 @@ var STAM = { regen: 12, delay: 0.6, dodge: 5, block: 3, low: 25, trainRegen: 45,
 
 /* mode: 'game' = real match (health and stamina, K.O. ends it) or 'training' (the opponent never attacks, nobody can lose, no end). */
 function createGame(mode) {
-  if (mode === 'story') { var SG = createGame('game'); SG.story = true; SG.turn = null; SG.boss = { id: 'doon', fin: null, fade: 0, slowT: 0, slowK: 1, thunder: 6 + Math.random() * 8 }; SG.a.timer = 2.6; return SG; }
+  if (mode === 'story') { var SG = createGame('arcade'); SG.story = true; SG.boss = { id: 'doon', fin: null, finDue: false, fade: 0, slowT: 0, slowK: 1, thunder: 6 + Math.random() * 8, hookN: 0 }; var SA = SG.arc; SA.boss = true; SA.N = 5 + (Math.random() < 0.5 ? 1 : 0); SA.ATK = 3; SA.seq = arcSeq(1, SA.N); return SG; }      // Story Mode: the Arcade rules (danger circles, then your attack window), DOON's settings
   return {
     mode: mode === 'game' ? 'game' : mode === 'arcade' ? 'arcade' : 'training',
     arc: mode === 'arcade' ? arcNew() : null,
@@ -3136,8 +3170,9 @@ function bossTick(G, dt, fx) {
   if (G.phase === 'fight' && !B.fin) {
     G.pHP = Math.max(12, G.pHP);                                                // Khaled stays standing until the finishing blow
     if (G.t >= BOSS_FIN_T || (G.t >= BOSS_FIN_EARLY && G.pHP <= 14)) {
-      B.fin = { t: 0 }; a.atk = { type: 'hook', ptype: 'upper', label: 'DOON', hw: 900, y0: 0, y1: 2000, zx: 240 }; a.side = 'right'; a.counter = false;
-      setA(G, 'windup', 1.5); a.locked = true; fx.warn(); addPopup(G, 'DOON', 240, 200, '#c27bff', 64); G.shake = 8; B.slowT = 1.5; B.slowK = 0.55;
+      if (G.arc) { B.finDue = true; if (G.arc.ph !== 'dodge') { G.arc.i = 0; arcGo(G.arc, 'dodge'); G.arc.busy = false; G.arc.wait = 0.3; setA(G, 'idle', 9); } }      // the next punch is the finishing blow
+      else { B.fin = { t: 0 }; a.atk = { type: 'hook', ptype: 'upper', label: 'DOON', hw: 900, y0: 0, y1: 2000, zx: 240 }; a.side = 'right'; a.counter = false;
+        setA(G, 'windup', 1.5); a.locked = true; fx.warn(); addPopup(G, 'DOON', 240, 200, '#c27bff', 64); G.shake = 8; B.slowT = 1.5; B.slowK = 0.55; }
     }
   }
   if (B.fin) { B.fin.t += dt; if (G.phase === 'fight' && G.a.state === 'windup') G.shake = Math.max(G.shake, 3 + B.fin.t * 6); }
@@ -3319,9 +3354,9 @@ function arcLaneHit(lane, p) { return Math.abs(p.gx - lane.tx) < lane.r + BODY_H
 var ARC_WARN = [1.2, 1.1, 1.0, 0.9, 0.85];                                    // warning-to-impact seconds for rounds 1..5; after that 0.04 s faster per round, never below 0.6 s (tracking latency + human reaction)
 function arcWarnT(r) { if (SETTINGS.hard) r += 3; return r <= ARC_WARN.length ? ARC_WARN[r - 1] : Math.max(0.6, 0.85 - (r - 5) * 0.04); }          // Hard starts where Easy is at round 4 and keeps tightening
 function arcGap(r) { if (SETTINGS.hard) r += 3; return Math.max(0.1, 0.25 - (r - 1) * 0.02); }          // pause between a punch and the next warning
-function arcSeq(r) {
+function arcSeq(r, nn) {
   var pool = r < 2 ? ['L', 'R', 'H', 'UL', 'UR'] : ['L', 'R', 'H', 'UL', 'UR', 'H'], out = [], prev = '', k, c, g;
-  for (k = 0; k < ARC.N; k++) { g = 0; do { c = pool[Math.floor(Math.random() * pool.length)]; g++; } while (c === prev && g < 12); out.push(c); prev = c; }
+  for (k = 0; k < (nn || ARC.N); k++) { g = 0; do { c = pool[Math.floor(Math.random() * pool.length)]; g++; } while (c === prev && g < 12); out.push(c); prev = c; }
   return out;
 }
 function arcBest() { try { return parseInt(localStorage.getItem('mb.best') || '0', 10) || 0; } catch (e) { return 0; } }
@@ -3345,9 +3380,17 @@ function arcOpp(G, dt) {
 }
 function arcLaunch(G, fx) {
   var A = G.arc, a = G.a, key = A.seq[A.i], Z = ARC.ZONES[key], wT = arcWarnT(A.round);
+  if (A.boss) wT = A.round < 2 ? 0.7 : 0.62;                                    // DOON: very fast punches (0.6 s is the floor for camera latency plus reaction)
+  var B = G.boss, fin = B && B.finDue && !B.fin;
+  if (fin) { key = 'H'; Z = ARC.ZONES.H; wT = 1.5; B.fin = { t: 0 }; addPopup(G, 'DOON', 240, 200, '#c27bff', 64); G.shake = 8; B.slowT = 1.5; B.slowK = 0.55; }
   var gm = arcLaneGeom(key, G.camX);
   a.atk = { type: Z.type, ptype: Z.ptype, label: '', zone: key, lane: Z, zx: 240 - Z.tx, cx: gm.cx, cy: gm.cy, r: gm.r, gy: gm.cy, hw: gm.r, y0: gm.cy - gm.r, y1: gm.cy + gm.r };
   a.side = A.i % 2 ? 'left' : 'right';
+  if (fin) a.atk.lane = { tx: 0, r: 9999, head: false };                        // the finishing blow cannot be dodged
+  if (A.boss && K3.bossClips) {                                                 // DOON throws a real punch, timed so the fist lands on the impact frame
+    var cn = fin ? 'Left_Uppercut_from_Guard' : key === 'UL' || key === 'L' ? 'Right_Jab_from_Guard' : key === 'UR' || key === 'R' ? 'Left_Jab_from_Guard' : (B.hookN++ % 2 ? 'Right_Upper_Hook_from_Guard' : 'Left_Short_Hook_from_Guard'), cc = K3.bossClips.clips[cn];
+    if (cc) a.clip = { name: cn, t0: G.t, off: cc.contact - (wT + 0.11), end: Math.min(cc.dur, cc.contact + 0.45) };
+  }
   setA(G, 'windup', wT); a.locked = true;                                     // the circle never moves: what you see is what lands
   A.busy = true; A.resolved = false; A.wt = 0; A.wDur = wT + 0.11; A.lastIn = -9; A.ticks = 0; fx.warn();       // 0.11 s after the strike starts is the impact frame (see updateAI)
 }
@@ -3355,16 +3398,18 @@ function arcLaunch(G, fx) {
 function arcStrike(G, fx) {
   var A = G.arc, a = G.a, p = G.p, z = a.atk, px = 240 + p.x, hit = z ? arcLaneHit(z.lane, p) : true;
   A.resolved = true; A.i++; a.dodgedRecover = false;
+  if (G.boss && G.boss.fin) { bossFinisherLands(G, fx); return; }
   if (!hit) {
     var perfect = A.lastIn > 0 && A.lastIn >= A.wDur - 0.62, pts = perfect ? 50 : 25;      // perfect: you were still in the circle in the last half second and cleared it just in time
     A.score += pts; A.dodged++; G.dodges++; if (perfect) A.perfect++; A.pulse = 1;
     addPopup(G, perfect ? tr('PERFECT!') + ' +50' : tr('DODGED') + ' +25', px, 420, perfect ? '#ffc42e' : '#3be8ff', perfect ? 44 : 38); fx.dodge();
     if (perfect) burst(G, px, 470, '#ffc42e', 12, 240);
   } else {
-    A.hits++; G.taken++; G.pHP = Math.max(0, G.pHP - ARC.HIT); G.p.hurt = 0.45; if (G.mixer) G.mixer.play('hit');
+    A.hits++; G.taken++; G.pHP = G.boss ? Math.max(12, G.pHP - 15) : Math.max(0, G.pHP - ARC.HIT); G.p.hurt = 0.45; if (G.mixer) G.mixer.play('hit');
+    if (G.boss) { burst(G, px, 470, '#a24bff', 22, 340); G.shake = 24; if (z && z.zone === 'H') { G.boss.slowT = 0.32; G.boss.slowK = 0.35; } }       // DOON's heavy hits: purple impact, big shake, a short slow motion
     G.flash = 1; G.shake = 14; G.hitstop = 0.07; G.combo = 0; A.streak = 0; a.happy = 0.8;
-    fx.hurt(); addPopup(G, '-' + ARC.HIT + '%', px, 410, '#ff3b4f', 52); burst(G, px, 480, '#ff3b4f', 16, 280);
-    if (G.pHP <= 0) arcOver(G, fx);
+    fx.hurt(); addPopup(G, '-' + (G.boss ? 15 : ARC.HIT) + '%', px, 410, '#ff3b4f', 52); burst(G, px, 480, '#ff3b4f', 16, 280);
+    if (G.pHP <= 0 && !G.boss) arcOver(G, fx);
   }
 }
 function arcOver(G, fx) {
@@ -3386,6 +3431,7 @@ function arcPunch(G, ev, fx) {
   burst(G, gx, 262, power ? '#ffc42e' : '#ff9f43', power ? 14 : 8, power ? 260 : 190);
   addPopup(G, '+' + pts, gx + rand(-16, 16), 215, power ? '#ffc42e' : '#ffffff', power ? 46 : 38);
   if (!a.dn) { a.hurt = 0.35; a.hurtDir = s === 'R' ? -1 : 1; a.hurtId++; }          // every valid punch: the existing hit reaction (hurt pose + imported "hit" accent)
+  if (A.boss) { G.aHP = Math.max(30, G.aHP - (power ? 3 : 2)); if (K3.bossClips) a.clip = { name: 'Hit_Reaction_1', t0: G.t, off: 0.05, end: 0.7, w: 0.85 }; if (A.streak >= 3 && A.streak % 3 === 0) addPopup(G, 'COMBO x' + A.streak, 240, 300, '#ff9f43', 44); return; }      // DOON takes the hits but never goes down in chapter 1
   if (!a.dn) {
     if (A.rPunches >= 14 && !A.koDone) { A.koDone = true; a.dn = { kind: 'ko', t: 0, dur: 1.9 }; addPopup(G, 'K.O.!', 240, 300, '#ff3b4f', 64); fx.bell(); G.shake = 22; G.hitstop = 0.18; A.downCool = 2.5; }
     else if (A.downCool <= 0 && ((power && A.streak >= 3) || A.streak >= 6)) { a.dn = { kind: 'down', t: 0, dur: 1.4 }; A.downCool = 2.5; addPopup(G, tr('KNOCKDOWN!'), 240, 300, '#ffc42e', 50); G.shake = 16; G.hitstop = 0.12; }
@@ -3401,7 +3447,7 @@ function arcStep(G, dt, punches, fx) {
   arcOpp(G, dt);
   if (A.ph === 'intro') {
     if (A.pt < 0.02 && !A.sfxIntro) { A.sfxIntro = true; fx.ding(); }
-    if (A.pt > (A.round === 1 ? 1.0 : 0.8) && !a.dn) { A.i = 0; A.wait = 0.15; A.busy = false; A.sfxIntro = false; arcGo(A, 'dodge'); }
+    if (A.pt > (A.boss ? (A.round === 1 ? 0.8 : 0.25) : A.round === 1 ? 1.0 : 0.8) && !a.dn) { A.i = 0; A.wait = 0.15; A.busy = false; A.sfxIntro = false; arcGo(A, 'dodge'); }
   } else if (A.ph === 'dodge') {
     if (A.busy) {
       A.wt += dt;
@@ -3411,12 +3457,12 @@ function arcStep(G, dt, punches, fx) {
         var fr = A.wt / A.wDur;
         if (A.ticks === 0 && fr >= 0.5) { fx.tick(); A.ticks = 1; } else if (A.ticks === 1 && fr >= 0.75) { fx.tick(); A.ticks = 2; } else if (A.ticks === 2 && fr >= 0.9) { fx.tick(); A.ticks = 3; }
       }
-      if (A.resolved && A.i >= ARC.N && a.state === 'recover') { arcGo(A, 'attack'); A.atkT = 0; A.busy = false; a.atk = null; setA(G, 'idle', 9); fx.bell(); G.shake = Math.max(G.shake, 8); }   // the 5th punch is resolved: straight into the attack
+      if (A.resolved && A.i >= (A.N || ARC.N) && a.state === 'recover') { arcGo(A, 'attack'); A.atkT = 0; A.busy = false; a.atk = null; setA(G, 'idle', 9); fx.bell(); G.shake = Math.max(G.shake, 8); }   // the 5th punch is resolved: straight into the attack
       else if (A.resolved && (a.state === 'idle' || (a.state === 'recover' && a.stateT >= 0.12))) { A.busy = false; A.wait = arcGap(A.round); if (a.state === 'recover') setA(G, 'idle', 9); }     // no dead time: the next warning starts as the glove comes back
     } else if (a.state === 'idle') {
       A.wait -= dt;
       if (A.wait <= 0) {
-        if (A.i >= ARC.N) { arcGo(A, 'attack'); A.atkT = 0; a.atk = null; fx.bell(); G.shake = Math.max(G.shake, 8); }
+        if (A.i >= (A.N || ARC.N)) { arcGo(A, 'attack'); A.atkT = 0; a.atk = null; fx.bell(); G.shake = Math.max(G.shake, 8); }
         else arcLaunch(G, fx);
       }
     }
@@ -3424,9 +3470,9 @@ function arcStep(G, dt, punches, fx) {
   } else if (A.ph === 'attack') {
     A.atkT += dt;
     for (i = 0; i < punches.length; i++) arcPunch(G, punches[i], fx);
-    if (A.atkT >= ARC.ATK) { arcSaveBest(A); arcGo(A, 'roundEnd'); fx.bell(); }
+    if (A.atkT >= (A.ATK || ARC.ATK)) { if (!A.boss) arcSaveBest(A); arcGo(A, 'roundEnd'); fx.bell(); }
   } else if (A.ph === 'roundEnd') {
-    if (A.pt > 0.9) { A.round++; A.seq = arcSeq(A.round); A.rScore = 0; A.rPunches = 0; A.koDone = false; A.streak = 0; arcGo(A, 'intro'); }
+    if (A.pt > (A.boss ? 0.25 : 0.9)) { A.round++; if (A.boss) A.N = 5 + (Math.random() < 0.5 ? 1 : 0); A.seq = arcSeq(A.round, A.N); A.rScore = 0; A.rPunches = 0; A.koDone = false; A.streak = 0; arcGo(A, 'intro'); }
   }
 }
 
@@ -4839,7 +4885,7 @@ var STORY = {
   base: 'story/', img: {}, vid: null,
   chapters: [
     { id: 'ch1', name: 'CHAPTER 1', title: 'THE BREAKING POINT', load: 'ch1_load.jpg',
-      files: { street: 'ch1_street.jpg', boss: 'doon.glb', intro: 'ch1_intro.mp4' },
+      files: { street: 'ch1_street.jpg', boss: 'doon.glb', anims: 'doon_anims.json', intro: 'ch1_intro.mp4' },
       steps: [{ kind: 'video', src: 'intro' }, { kind: 'fight', boss: 'doon', env: 'street', outcome: 'scripted-loss' }, { kind: 'video', src: 'after', optional: true }] }
   ]
 };
@@ -4862,6 +4908,7 @@ function storyPrepare(ch, onProgress) {
   function report() { var t = 0; for (var k in parts) t += parts[k] * W8[k]; onProgress(Math.min(1, t)); }
   function img(src) { return new Promise(function (ok, bad) { var im = new Image(); im.onload = function () { ok(im); }; im.onerror = function () { bad(new Error('could not load ' + src)); }; im.src = STORY.base + src; }); }
   var pImg = img(ch.files.street).then(function (im) { STORY.img.street = im; parts.img = 1; report(); });
+  var pAnim = K3.bossClips ? Promise.resolve() : fetch(STORY.base + ch.files.anims).then(function (r) { if (!r.ok) throw new Error('doon_anims.json: HTTP ' + r.status); return r.json(); }).then(function (j) { K3.loadBossClips(j); });
   var pBoss = fetch(STORY.base + ch.files.boss).then(function (r) {
     if (!r.ok) throw new Error('doon.glb: HTTP ' + r.status);
     var total = +r.headers.get('content-length') || 3400000, got = 0;
@@ -4884,7 +4931,7 @@ function storyPrepare(ch, onProgress) {
     }
     var id = setInterval(check, 200); v.addEventListener('canplaythrough', check);
   });
-  return Promise.all([pImg, pBoss, pVid]);
+  return Promise.all([pImg, pBoss, pVid, pAnim]);
 }
 /* cover-fit stage for story art: fills the screen; on wide screens more is cropped from the top than the bottom so the loading bar always shows */
 function StoryCover(p) {
@@ -4895,13 +4942,13 @@ function StoryMode(props) {
   var ch = STORY.chapters[0];
   var ps = useState('load'), phase = ps[0], setPhase = ps[1], fs = useState(1), fade = fs[0], setFade = fs[1], pr = useState(0), prog = pr[0], setProg = pr[1];
   var es = useState(null), err = es[0], setErr = es[1], ts = useState(false), needTap = ts[0], setNeedTap = ts[1], shown = useRef(0), vbox = useRef(null), dots = useState(0), dot = dots[0], setDot = dots[1];
-  function go(next) { setFade(1); setTimeout(function () { if (next === 'fight') { ARENA.env = 'street'; K3.bossOn = true; CHAR.id = 'khalid'; } setPhase(next); setTimeout(function () { setFade(0); }, 60); }, 650); }      // fade through black (0.65 s)
+  function go(next) { setFade(1); setTimeout(function () { if (next === 'fight') { ARENA.env = 'street'; K3.bossOn = true; CHAR.id = 'khalid'; setOppDist(1.75); } setPhase(next); setTimeout(function () { setFade(0); }, 60); }, 650); }      // fade through black (0.65 s)
   useEffect(function () {                                                              // enter: fade in, Khaled only, load the chapter
     var prevChar = CHAR.id; CHAR.id = 'khalid';
     setTimeout(function () { setFade(0); }, 60);
     var alive = true, id = setInterval(function () { setDot(function (n) { return (n + 1) % 4; }); }, 420);
     storyPrepare(ch, function (x) { if (alive) setProg(x); }).then(function () { if (!alive) return; setProg(1); setTimeout(function () { if (alive) go('video'); }, 450); }, function (e) { if (alive) setErr(e); });
-    return function () { alive = false; clearInterval(id); CHAR.id = prevChar; K3.bossOn = false; ARENA.env = 'gym'; if (K3.boss && K3.boss.root) K3.boss.root.visible = false; if (K3.opp && K3.opp.root) K3.opp.root.visible = true; try { if (STORY.vid) STORY.vid.pause(); } catch (x) { } };
+    return function () { alive = false; clearInterval(id); CHAR.id = prevChar; K3.bossOn = false; ARENA.env = 'gym'; setOppDist(2.4); if (K3.boss && K3.boss.root) K3.boss.root.visible = false; if (K3.opp && K3.opp.root) K3.opp.root.visible = true; try { if (STORY.vid) STORY.vid.pause(); } catch (x) { } };
   }, []);
   useEffect(function () {                                                              // smooth bar: eases toward the real progress
     var raf = 0; function f() { shown.current += (prog - shown.current) * 0.12; var el = document.getElementById('stbar'); if (el) el.style.width = (shown.current * 100).toFixed(2) + '%'; raf = requestAnimationFrame(f); } raf = requestAnimationFrame(f);
@@ -4925,7 +4972,7 @@ function StoryMode(props) {
   else if (phase === 'video') body = h('div', { className: 'stvbox', ref: vbox }, needTap ? h('button', { className: 'st-snd', onClick: function () { setNeedTap(false); var v = STORY.vid; if (v) { v.muted = false; var q = v.play(); if (q && q.catch) q.catch(function () { v.muted = true; v.play(); }); } } }, '🔇 ' + tr('Tap for sound')) : null);
   else if (phase === 'fight') body = h(Match, { key: 'story-ch1', mode: 'story', tracker: props.tracker, input: props.input, debug: props.debug, onPause: props.onPause, onSettings: props.onSettings, onQuit: props.onExit, onEnd: function () { setFade(1); setTimeout(function () { setPhase('next'); }, 60); } });
   else body = h('div', { className: 'st-next' }, h('p', { className: 'st-ch' }, ch.name + ' · ' + tr(ch.title)), h('h2', null, tr('TO BE CONTINUED…')), h('button', { className: 'zb gold st-cont', 'data-hand': '1', onClick: props.onExit }, h('span', { className: 'zl' }, tr('CONTINUE'))));
-  useEffect(function () { if (phase !== 'next') return; K3.bossOn = false; ARENA.env = 'gym'; var a = setTimeout(function () { setFade(0); }, 400), b = setTimeout(function () { props.onExit(); }, 9000); return function () { clearTimeout(a); clearTimeout(b); }; }, [phase]);      // the next cinematic is not made yet: back to the menu by itself
+  useEffect(function () { if (phase !== 'next') return; K3.bossOn = false; ARENA.env = 'gym'; setOppDist(2.4); var a = setTimeout(function () { setFade(0); }, 400), b = setTimeout(function () { props.onExit(); }, 9000); return function () { clearTimeout(a); clearTimeout(b); }; }, [phase]);      // the next cinematic is not made yet: back to the menu by itself
   return h('div', { className: 'story' }, body, h('div', { className: 'st-fade', style: { opacity: fade } }));
 }
 
