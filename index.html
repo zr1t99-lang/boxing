@@ -1543,7 +1543,11 @@ var useState = React.useState, useEffect = React.useEffect, useRef = React.useRe
 var CFG = {
   VISION_URL: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs',
   WASM_URL: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm',
-  MODEL_URL: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+  MODEL_URL: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
+  MODELS: { lite: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+            full: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
+            heavy: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task' },
+  trk: { share: 0.42, fullMax: 12, heavyMax: 13, upFull: 5.5, warm: 40, judge: 90 },   // pose detection runs on the main thread: it may use about 42% of it; the full model is kept while one detection plus a rendered frame still fit in 1/60 s (under 12 ms), otherwise the lite model takes over
   smooth: 0.6,          // EMA weight of the newest landmark sample (higher = less lag, more jitter)
   visMin: 0.4,          // minimum landmark visibility to trust a joint
   closeFrac: 0.60,      // shoulder width / frame width above this = "Move Back" (phone held close is fine)
@@ -1573,6 +1577,9 @@ var CFG = {
   raiseAbove: 0.35,     // wrist above shoulder line by this much = hand raised
   dodge: { on: 0.13, offRatio: 0.55, frames: 3, refractMs: 160, dead: 0.04, full: 0.24, head: 0.8, torso: 1.0 },   // lean in SW: dodge activates at 13% of shoulder width and releases at 7% (hysteresis); avatar dead zone and full-lean distance; weights of head-vs-shoulder-centre and torso shift in the lean
   filter: 1,
+  wf: { arm: [1, 5, 0.8, 4], dc: 2.5, pred: 0, pv0: 1.2, pv1: 2.5 },   // v66, tuned in a noise/latency simulation: 31% less arm shake at rest and 30% less error in slow moves for the same punch response (v65: [3, 12, 2, 8], dc 5)   // One Euro filters on the metric 3D arm joints [minCutoff, beta, z minCutoff, z beta], derivative cutoff (Hz); pred = how far ahead (s) the avatar's arm is led during fast motion
+  sd: { base: 4, max: 48, gain: 6, dead: 1 },                      // v65: base 9, gain 9, dead 0
+  fuse: 0.85,                                                       // weight of the camera picture for the in-plane arm direction (0..1)                       // avatar arm-direction smoothing: rate = base + gain * (speed - dead), up to base + max (1/s)
   block: { frames: 3, maxElbow: 120, nearHead: 1.3, belowNose: 0.15 },
   pos: { max: 170, duckFull: 0.5 }   // max avatar sideways travel (px); head drop (SW) for a full duck
 };
@@ -1587,7 +1594,7 @@ var SETTINGS = { dodge: 0.7, punch: 1, dead: 1, anim: true, dev: false, hard: fa
   } catch (e) {}
   try { if (/[?&]dev=1/.test(location.search)) SETTINGS.dev = true; } catch (e) {}
 })();
-var APP_BUILD = 'v65';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
+var APP_BUILD = 'v66';          // shown next to the fps counter and in Settings, so a stale cached copy is easy to spot
 var STANCE_LABEL = { full: 'FULL BODY', half: 'HALF BODY' }, STANCE_NEXT = { full: 'half', half: 'full' };
 function saveSettings() { try { localStorage.setItem('mb.settings3', JSON.stringify({ dodge: SETTINGS.dodge, punch: SETTINGS.punch, dead: SETTINGS.dead, anim: SETTINGS.anim, hard: SETTINGS.hard, stance: SETTINGS.stance })); } catch (e) {} }
 
@@ -1614,10 +1621,10 @@ function mkErr(code, message, cause) { var e = new Error(message); e.code = code
    ====================================================================== */
 /* One Euro filter: heavy smoothing while a joint is nearly still (no jitter), almost none while it moves fast (no lag). */
 function d3(a, b) { var x = a.x - b.x, y = a.y - b.y, z = a.z - b.z; return Math.sqrt(x * x + y * y + z * z); }
-function OneEuro(minC, beta) { this.minC = minC; this.beta = beta; this.x = null; this.dx = 0; }
+function OneEuro(minC, beta, dc) { this.minC = minC; this.beta = beta; this.dc = dc || 5; this.x = null; this.dx = 0; }
 OneEuro.prototype.f = function (v, dt) {
   if (this.x === null) { this.x = v; this.dx = 0; return v; }
-  this.dx += ((v - this.x) / dt - this.dx) / (1 + 1 / (6.2832 * 5 * dt));              // derivative low-pass at 5 Hz
+  this.dx += ((v - this.x) / dt - this.dx) / (1 + 1 / (6.2832 * this.dc * dt));        // derivative low-pass (5 Hz unless set)
   var fc = this.minC + this.beta * Math.abs(this.dx);
   this.x += (v - this.x) / (1 + 1 / (6.2832 * fc * dt));
   return this.x;
@@ -1706,6 +1713,17 @@ function fsDir3(a, key, P0, P1, swW) {
   var z = sg * Math.max(Math.abs(dz) * 1.2, est), m = Math.hypot(dx, dy, z) || 1;
   return [dx / m, dy / m, z / m];
 }
+/* Precise arm direction: the camera picture pins the in-plane direction much more tightly than the metric 3D landmarks do (about 3x less noise),
+   so the in-plane part is taken from the picture and only the toward/away-from-camera tilt comes from 3D + foreshortening.
+   When the bone points almost straight at the lens its picture is too short to trust and the 3D direction is kept. */
+function fuseDir(d, P0, P1, sw) {
+  var k = CFG.fuse; if (!k || !d) return d;
+  var ix = P1.X - P0.X, iy = P1.Y - P0.Y, il = Math.hypot(ix, iy), c = Math.hypot(d[0], d[1]);
+  if (il < 1e-6 || c < 1e-6) return d;
+  var ag = (d[0] * ix + d[1] * iy) / (c * il);                                      // the two sources must roughly agree (within 25 deg, fading out by 50 deg): a big disagreement means one of them is wrong, then the 3D direction is kept
+  var w = k * clamp((il / sw - 0.12) / 0.25, 0, 1) * clamp((ag - 0.643) / (0.906 - 0.643), 0, 1), ux = d[0] / c * (1 - w) + ix / il * w, uy = d[1] / c * (1 - w) + iy / il * w, un = Math.hypot(ux, uy) || 1;
+  return [ux / un * c, uy / un * c, d[2]];
+}
 GestureEngine.prototype._arm = function (s, L, sw, t) {
   var P = CFG.punch, sens = SETTINGS.punch * ((this.handSens && this.handSens[s]) || 1), a = this.arms[s], f = this.feat, sg = s === 'R' ? 1 : -1;
   var idx = s === 'R' ? [12, 14, 16, 20, 18] : [11, 13, 15, 19, 17];
@@ -1717,7 +1735,8 @@ GestureEngine.prototype._arm = function (s, L, sw, t) {
   var w3 = this.hasW ? this.wl : null, r3 = -1, e3 = -1, fz = 0;
   if (w3) { var sS = w3[idx[0]], eE = w3[idx[1]], wW = w3[idx[2]], swW = Math.max(0.05, d3(w3[11], w3[12])), uA = d3(sS, eE), fA = d3(eE, wW), sW = d3(sS, wW); r3 = sW / swW; e3 = sW / Math.max(0.05, uA + fA); fz = (sS.z - wW.z) / swW; a.z1 = (sS.z - eE.z) / swW; a.z2 = (eE.z - wW.z) / swW; } else { a.z1 = null; a.z2 = null; }
   a.u3 = null; a.f3 = null;
-  if (w3 && E.v > 0.12 && Wr.v > 0.4) { var sS3 = w3[idx[0]], eE3 = w3[idx[1]], wW3 = w3[idx[2]]; if (sS3 && eE3 && wW3 && sS3.x !== undefined && eE3.x !== undefined && wW3.x !== undefined) { var n1 = d3(sS3, eE3), n2 = d3(eE3, wW3); if (n1 > 0.05 && n2 > 0.05) { a.u3 = fsDir3(a, 'Lu', sS3, eE3, swW); a.f3 = fsDir3(a, 'Lf', eE3, wW3, swW); } } }      // metric arm directions in the player's frame (x right, y down, z toward the camera)
+  var wP = this.hasW && this.wp ? this.wp : w3;
+  if (w3 && E.v > 0.12 && Wr.v > 0.4) { var sS3 = wP[idx[0]], eE3 = wP[idx[1]], wW3 = wP[idx[2]]; if (sS3 && eE3 && wW3 && sS3.x !== undefined && eE3.x !== undefined && wW3.x !== undefined) { var n1 = d3(sS3, eE3), n2 = d3(eE3, wW3); if (n1 > 0.05 && n2 > 0.05) { a.u3 = fuseDir(fsDir3(a, 'Lu', sS3, eE3, swW), S, E, sw); a.f3 = fuseDir(fsDir3(a, 'Lf', eE3, wW3, swW), E, Wr, sw); } } }      // metric arm directions in the player's frame (x right, y down, z toward the camera)
   var hs = -1;
   if (Fi && Pk && Fi.v > CFG.visMin && Pk.v > CFG.visMin) hs = (dist(Wr, Fi) + dist(Wr, Pk)) / 2 / sw;     // hand size in the image: grows as the fist nears the lens
   var rx = (Wr.X - S.X) / sw, ry = (Wr.Y - S.Y) / sw;
@@ -1825,8 +1844,12 @@ GestureEngine.prototype.update = function (raw, vw, vh, t, world) {
   if (this.hasW) {
     var wl = this.wl || (this.wl = []), wfl = this.wflt || (this.wflt = {});
     for (wi = 0; wi < WJ.length; wi++) {
-      var wj = WJ[wi]; wq = world[wj]; WF = wfl[wj] || (wfl[wj] = wj >= 23 ? [new OneEuro(2, 9), new OneEuro(2, 9), new OneEuro(2, 9)] : [new OneEuro(3, 12), new OneEuro(3, 12), new OneEuro(2, 8)]); wo = wl[wj] || (wl[wj] = {});
+      var wj = WJ[wi]; wq = world[wj]; var WC = CFG.wf; WF = wfl[wj] || (wfl[wj] = wj >= 23 ? [new OneEuro(2, 9), new OneEuro(2, 9), new OneEuro(2, 9)] : [new OneEuro(WC.arm[0], WC.arm[1], WC.dc), new OneEuro(WC.arm[0], WC.arm[1], WC.dc), new OneEuro(WC.arm[2], WC.arm[3], WC.dc)]); wo = wl[wj] || (wl[wj] = {});
       wo.x = WF[0].f(wq.x, dt); wo.y = WF[1].f(wq.y, dt); wo.z = WF[2].f(wq.z, dt);
+      if (wj <= 16) {                                                                 // the avatar's arms use a copy led slightly ahead along the measured velocity (only during real, fast motion): it cancels part of the camera's delay
+        var wp = this.wp || (this.wp = []), pq = wp[wj] || (wp[wj] = {}), sp = Math.hypot(WF[0].dx, WF[1].dx, WF[2].dx), gt = CFG.wf.pred > 0 ? clamp((sp - CFG.wf.pv0) / (CFG.wf.pv1 - CFG.wf.pv0), 0, 1) * CFG.wf.pred : 0;
+        pq.x = wo.x + WF[0].dx * gt; pq.y = wo.y + WF[1].dx * gt; pq.z = wo.z + WF[2].dx * gt;
+      }
     }
   }
   // Upper body only: nose (0), shoulders (11/12), elbows (13/14), wrists (15/16) and the hand points (17-20). Hips and legs are never read.
@@ -2004,6 +2027,7 @@ var CAMPREF = { v: 'auto' };
 try { localStorage.removeItem('mb.cam'); localStorage.removeItem('mb.tv'); } catch (e) { }          // the rear camera is never remembered: every visit starts on the front camera
 function setCamPref(v) { CAMPREF.v = v; }                         // TV mode (rear camera) lasts only until the TV button is pressed again or the page is reloaded
 function desiredFacing() { return CAMPREF.v === 'environment' ? 'environment' : 'user'; }          // front camera by default; the TV button (or Settings) picks the rear one
+function isTouchDevice() { try { return (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window; } catch (e) { return true; } }
 function Tracker() {
   this.facing = desiredFacing();                                  // sideways (TV) uses the rear camera, upright the front one, unless the player chose
   this.video = document.createElement('video');
@@ -2015,6 +2039,8 @@ function Tracker() {
   this.host.appendChild(this.video);
   document.body.appendChild(this.host);
   this.stream = null; this.landmarker = null; this._modelPromise = null;
+  this.model = 'full'; this.cost = 0; this.costN = 0; this._nextT = 0; this._swapping = false; this._downOnce = false; this._fileset = null; this._vision = null; this._delegate = 'GPU';
+  try { var _tq = /[?&]trk=(lite|full|heavy)/.exec(location.search); if (_tq) { this.model = _tq[1]; this._pinned = true; } } catch (e) { }
   this.running = false; this._handle = 0; this._useRVFC = typeof this.video.requestVideoFrameCallback === 'function';
   this._lastVT = -1; this.lostN = 0; this._detectErr = 0;
   this.overlay = null; this.listeners = [];
@@ -2077,7 +2103,7 @@ Tracker.prototype.startCamera = async function () {
   var stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: this.facing === 'environment' ? { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } } : { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 360 }, frameRate: { ideal: 30 } },
+      video: this.facing === 'environment' ? { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60, max: 60 } } : { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60, max: 60 } },      // 60 fps: a fast fist is less blurred and every detection uses a fresher frame
       audio: false
     });
   } catch (e) { throw mapCamError(e); }
@@ -2110,19 +2136,10 @@ Tracker.prototype.loadModel = function () {
     var fileset;
     try { fileset = await vision.FilesetResolver.forVisionTasks(CFG.WASM_URL); }
     catch (e) { throw mkErr('model', 'The MediaPipe WebAssembly runtime could not be loaded.', e); }
-    var opts = function (delegate) {
-      return {
-        baseOptions: { modelAssetPath: CFG.MODEL_URL, delegate: delegate },
-        runningMode: 'VIDEO', numPoses: 1,
-        minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5
-      };
-    };
-    var lm;
-    try { lm = await vision.PoseLandmarker.createFromOptions(fileset, opts('GPU')); }
-    catch (e1) {
-      try { lm = await vision.PoseLandmarker.createFromOptions(fileset, opts('CPU')); }
-      catch (e2) { throw mkErr('model', 'The pose model file could not be loaded.', e2); }
-    }
+    self._vision = vision; self._fileset = fileset;
+    var lm = null, kinds = self.model === 'lite' ? ['lite'] : [self.model, 'lite'], k, err = null;
+    for (k = 0; k < kinds.length && !lm; k++) { try { lm = await self._makeLandmarker(kinds[k]); self.model = kinds[k]; } catch (e) { err = e; } }
+    if (!lm) throw mkErr('model', 'The pose model file could not be loaded.', err);
     if (self.destroyed) { try { lm.close(); } catch (e) {} throw mkErr('model', 'Cancelled.'); }
     self.landmarker = lm;
   })();
@@ -2130,9 +2147,34 @@ Tracker.prototype.loadModel = function () {
   return this._modelPromise;
 };
 
+/* one landmarker for a model kind: GPU first, CPU if the GPU path is refused */
+Tracker.prototype._makeLandmarker = async function (kind) {
+  var V = this._vision, F = this._fileset, url = CFG.MODELS[kind] || CFG.MODEL_URL, self = this;
+  var opts = function (delegate) { return { baseOptions: { modelAssetPath: url, delegate: delegate }, runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5 }; };
+  try { var g = await V.PoseLandmarker.createFromOptions(F, opts('GPU')); self._delegate = 'GPU'; return g; }
+  catch (e1) { var c = await V.PoseLandmarker.createFromOptions(F, opts('CPU')); self._delegate = 'CPU'; return c; }
+};
+/* adaptive model: the measured cost of one detection decides. Full is the default; on a device where it costs too much the lite model takes over (once, no flip-flopping);
+   on a computer where full is very cheap, heavy (the most precise) is tried and kept only if it stays affordable. */
+Tracker.prototype._adapt = function () {
+  var T = CFG.trk; if (this._swapping || this._pinned || this.costN < T.judge) return;
+  var to = null;
+  if (this.model === 'full' && this.cost > T.fullMax) to = 'lite';
+  else if (this.model === 'heavy' && this.cost > T.heavyMax) to = 'full';
+  else if (this.model === 'full' && this.cost < T.upFull && !this._downOnce && !this._triedHeavy && !isTouchDevice()) { to = 'heavy'; this._triedHeavy = true; }
+  if (!to) return;
+  if (to !== 'heavy') this._downOnce = true;
+  var self = this; this._swapping = true;
+  this._makeLandmarker(to).then(function (lm) {
+    self._swapping = false; if (self.destroyed) { try { lm.close(); } catch (e) { } return; }
+    var old = self.landmarker; self.landmarker = lm; self.model = to; self.cost = 0; self.costN = 0; self.state.trk = to.toUpperCase();
+    try { if (old) old.close(); } catch (e) { }
+    self._emit();
+  }, function () { self._swapping = false; self.costN = 0; });
+};
 Tracker.prototype.startTracking = function () {
   if (this.running || !this.landmarker) return;
-  this.running = true; this._lastVT = -1;
+  this.running = true; this._lastVT = -1; this._nextT = 0;
   this._schedule();
 };
 Tracker.prototype._schedule = function () {
@@ -2151,8 +2193,9 @@ Tracker.prototype._process = function () {
   var v = this.video;
   if (!this.landmarker || v.readyState < 2 || !v.videoWidth) return;
   if (v.currentTime === this._lastVT) return;
-  this._lastVT = v.currentTime;
   var t = performance.now(), res, s = this.state;
+  if (t < this._nextT) return;                                                       // keep the main thread's share for the game: skip this camera frame, the next one is used
+  this._lastVT = v.currentTime;
   try { res = this.landmarker.detectForVideo(v, t); }
   catch (e) {
     this._detectErr++;
@@ -2160,6 +2203,11 @@ Tracker.prototype._process = function () {
     return;
   }
   this._detectErr = 0;
+  var c = performance.now() - t; this.costN++;
+  if (this.costN > CFG.trk.warm) this.cost = this.cost ? this.cost + (c - this.cost) * 0.06 : c;      // the first detections compile shaders: not counted
+  this._nextT = t + Math.max(1000 / 62, (this.cost || c) / CFG.trk.share) - 2;
+  s.trk = this.model.toUpperCase(); s.trkMs = Math.round(this.cost || c);
+  this._adapt();
   s.vw = v.videoWidth; s.vh = v.videoHeight;
   this._fpsN++;
   if (t - this._fpsT > 1000) { s.fps = Math.round(this._fpsN * 1000 / (t - this._fpsT)); this._fpsN = 0; this._fpsT = t; }
@@ -2684,6 +2732,8 @@ K3.look = function (name) {
   if (name === 'gym') { L.hemi.color.setHex(0xffe6c0); L.hemi.groundColor.setHex(0x2a2116); L.hemi.intensity = 0.85; L.key.color.setHex(0xffe2bd); L.key.intensity = 1.3; L.rim.color.setHex(0xffc463); L.rim.intensity = 1.15; L.rim.position.set(-4, 4.5, 6); }
   else if (name === 'night') { L.hemi.color.setHex(0x8fa3c8); L.hemi.groundColor.setHex(0x14161f); L.hemi.intensity = 0.7; L.key.color.setHex(0xffb766); L.key.intensity = 1.25; L.rim.color.setHex(0xb07bff); L.rim.intensity = 1.0; L.rim.position.set(-3, 3.5, 5); }      // rainy street: cold sky, orange street lamps, DOON's purple rim
   else { L.hemi.color.setHex(0xffffff); L.hemi.groundColor.setHex(0x3a3f66); L.hemi.intensity = 0.95; L.key.color.setHex(0xfff1dd); L.key.intensity = 1.6; L.rim.color.setHex(0x7aa2ff); L.rim.intensity = 0.7; L.rim.position.set(-2, 2, 3); }
+  if (K3.scene && K3.renderer && K3.renderer.capabilities && K3.renderer.capabilities.isWebGL2 && !GFX.off) {      // image-based light for this arena; the flat hemisphere fill is lowered by what the environment now gives
+    var ev = K3.envFor(ENVLOOK[name] ? name : 'default'); if (ev) { K3.scene.environment = ev; L.hemi.intensity = (ENVLOOK[name] || ENVLOOK.default).hemi; } }
 };
 function drawGym(ctx, dx, dy, dw, dh) {
   loadArena(); var g = ARENA.wideImg, GYM_ = GYM;
@@ -2701,6 +2751,120 @@ function drawGym(ctx, dx, dy, dw, dh) {
   ctx.save(); ctx.translate(fx, fy); ctx.scale(1, 0.16); ctx.translate(-fx, -fy); ctx.fillStyle = sg; ctx.fillRect(fx - sw, fy - sw, sw * 2, sw * 2); ctx.restore();
   return true;
 }
+/* ===== GRAPHICS v66: console-sharp picture that holds its frame rate.
+   1) The game canvas and the 3D layer are drawn at the screen's real pixel count (a 4K TV gets 4K, a phone gets exactly its panel), not a fixed 1.5x.
+   2) GFX.rs is a dynamic resolution scale for the 3D layer only, driven by the measured frame rate: it steps down when frames are late and comes back when there is headroom.
+      If a step down does not help (the phone is busy with the camera, not the GPU), it is undone, so the picture is never softened for nothing.
+   3) Filmic (ACES) tone mapping on every model, then the fighters are rendered into a 4x multisampled sRGB target and one full-screen pass applies contrast-adaptive sharpening (CAS):
+      edges stay crisp when the picture is scaled up on a TV, flat areas are left alone, and the silhouette against the arena photo never gets a halo.
+   4) Image-based lighting: a small studio environment per arena (warm gym windows, orange street lamp and purple neon at night) lights skin, gloves and clothes from every side. ===== */
+var GFX = { rs: 1, lv: 0, LV: [1, 0.86, 0.74, 0.62], ema: 16.7, last: 0, slowT: 0, goodT: 0, trial: null, lockT: 0, max: 2.6, sharp: 0.55, expo: 1.08, sat: 1.06, post: null, plan: false, off: false };
+try { var _gq = /[?&]gfx=(\w+)/.exec(location.search); if (_gq) { if (_gq[1] === 'low') { GFX.off = true; GFX.lv = 2; GFX.rs = GFX.LV[2]; } else if (_gq[1] === 'flat') GFX.off = true; } } catch (e) { }
+/* frame-time governor: call once per drawn frame */
+GFX.tick = function (now) {
+  var d = GFX.last ? now - GFX.last : 16.7; GFX.last = now;
+  if (!(d > 0) || d > 250) return;                                                  // a stall (tab switch, alert): ignore
+  GFX.ema += (d - GFX.ema) * 0.05;
+  var target = 1000 / 60, late = GFX.ema > target * 1.16, fine = GFX.ema < target * 1.04, dt = d / 1000;
+  if (GFX.lockT > 0) GFX.lockT -= dt;
+  if (GFX.trial) {                                                                  // judging the last step down
+    GFX.trial.t += dt; GFX.trial.sum += d; GFX.trial.n++;
+    if (GFX.trial.t > 2.2) { var after = GFX.trial.sum / GFX.trial.n, helped = after < GFX.trial.before * 0.94;
+      if (!helped) { GFX.lv = Math.max(0, GFX.lv - 1); GFX.fails = (GFX.fails || 0) + 1; GFX.lockT = Math.min(300, 25 * Math.pow(2, GFX.fails - 1)); }           // not the GPU: give the resolution back and stop trying for a while
+      GFX.trial = null; GFX.slowT = 0; GFX.goodT = 0; }
+  } else if (late) { GFX.goodT = 0; GFX.slowT += dt;
+    if (GFX.slowT > 1.5 && GFX.lv < GFX.LV.length - 1 && GFX.lockT <= 0) { GFX.trial = { before: GFX.ema, t: 0, sum: 0, n: 0 }; GFX.lv++; GFX.slowT = 0; }
+  } else if (fine) { GFX.slowT = Math.max(0, GFX.slowT - dt); GFX.goodT += dt;
+    if (GFX.goodT > 6 && GFX.lv > 0) { GFX.lv--; GFX.goodT = 0; GFX.lockT = Math.max(GFX.lockT, 4); }
+  } else { GFX.slowT = Math.max(0, GFX.slowT - dt * 0.5); GFX.goodT = 0; }
+  GFX.rs = GFX.LV[GFX.lv];
+};
+/* the screen's real pixels per game unit (game frame is 853 units tall in landscape, 480 wide in portrait) */
+function mbDpr() {
+  var dp = window.devicePixelRatio || 1, vw = window.innerWidth || 844, vh = window.innerHeight || 390, k;
+  k = isLandscape() ? vh * dp / 853 : Math.min(vw / 480, vh / 853) * dp;
+  if (!(k > 0)) k = 1.5;
+  return Math.round(clamp(k, 1, GFX.max) * 100) / 100;
+}
+/* ---- environment lighting (built once per look with the renderer's own PMREM generator) ---- */
+var ENVLOOK = {
+  gym:     { wall: [0.20, 0.155, 0.11], floor: [0.13, 0.095, 0.06], ceil: [0.26, 0.22, 0.17], key: [3.2, 2.7, 2.0], rim: [2.8, 2.0, 1.05], fill: [0.9, 0.75, 0.55], hemi: 0.5 },
+  night:   { wall: [0.045, 0.055, 0.085], floor: [0.035, 0.04, 0.055], ceil: [0.03, 0.035, 0.06], key: [2.8, 1.75, 0.8], rim: [2.0, 0.95, 3.0], fill: [0.35, 0.45, 0.7], hemi: 0.42 },
+  default: { wall: [0.2, 0.2, 0.24], floor: [0.1, 0.1, 0.14], ceil: [0.3, 0.3, 0.33], key: [3.0, 2.8, 2.5], rim: [1.2, 1.6, 2.6], fill: [0.8, 0.8, 0.9], hemi: 0.55 }
+};
+K3.envFor = function (name) {
+  K3.envs = K3.envs || {};
+  if (K3.envs[name] !== undefined) return K3.envs[name];
+  var tex = null;
+  try {
+    var E = ENVLOOK[name] || ENVLOOK.default, sc = new THREE.Scene(), col = function (c) { return new THREE.Color(c[0], c[1], c[2]); };
+    var box = new THREE.Mesh(new THREE.BoxGeometry(12, 8, 12), [col(E.wall), col(E.wall), col(E.ceil), col(E.floor), col(E.wall), col(E.wall)].map(function (c) { return new THREE.MeshBasicMaterial({ color: c, side: THREE.BackSide }); }));
+    box.position.y = 2.5; sc.add(box);
+    var panel = function (c, w, hgt, x, y, z) { var m = new THREE.Mesh(new THREE.PlaneGeometry(w, hgt), new THREE.MeshBasicMaterial({ color: col(c), side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 1.4, 1.2); sc.add(m); };
+    panel(E.key, 3.2, 2.2, 2.2, 5.2, -4.4);                                         // key: above and behind the camera (same side as the key light)
+    panel(E.rim, 2.0, 3.4, -4.6, 3.6, 5.0);                                          // rim: behind the opponent, camera left
+    panel(E.rim, 1.4, 2.6, 4.8, 3.0, 5.4);
+    panel(E.fill, 4.0, 1.6, -5.4, 2.2, -2.0);                                        // soft fill from the side
+    var pm = new THREE.PMREMGenerator(K3.renderer); tex = pm.fromScene(sc, 0.035).texture; pm.dispose();
+    sc.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) [].concat(o.material).forEach(function (m) { m.dispose(); }); });
+  } catch (e) { tex = null; }
+  K3.envs[name] = tex; return tex;
+};
+/* sharper texture sampling at an angle (gloves, shorts, the floor) */
+K3.polish = function (root) {
+  var R = K3.renderer; if (!R || !root) return; var an = Math.min(8, R.capabilities.getMaxAnisotropy ? R.capabilities.getMaxAnisotropy() : 1);
+  root.traverse(function (o) { if (!o.isMesh || !o.material) return; [].concat(o.material).forEach(function (m) { ['map', 'normalMap', 'metalnessMap', 'roughnessMap', 'emissiveMap'].forEach(function (k) { var t = m[k]; if (t && t.anisotropy !== an && !t.isCanvasTexture) { t.anisotropy = an; t.needsUpdate = true; } }); }); });
+};
+/* ---- multisampled sRGB target + one full-screen pass: a touch of saturation and contrast-adaptive sharpening, premultiplied alpha kept exact.
+   The target replaces the canvas's own antialiasing (the canvas is then created without it), so the memory cost stays close to before. ---- */
+GFX.probe = function () {                                                            // WebGL2 (multisampled render targets) available? asked on a throwaway canvas before the real renderer exists
+  if (GFX.off) return false;
+  try { var c = document.createElement('canvas'), g = c.getContext('webgl2'); if (!g) return false; var lc = g.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext(); return true; } catch (e) { return false; }
+};
+var POST_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+var POST_FS = [
+  'uniform sampler2D tDiffuse; uniform vec2 px; uniform float sharp; uniform float sat; varying vec2 vUv;',
+  'vec3 srgb(vec3 c){ return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0031308)), vec3(0.41666)) - 0.055, step(vec3(0.0031308), c)); }',
+  'vec4 tap(vec2 o){ vec4 t = texture2D(tDiffuse, vUv + o * px); if (t.a < 0.002) return vec4(0.0);',
+  '  vec3 c = srgb(clamp(t.rgb / t.a, 0.0, 1.0)); float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = clamp(mix(vec3(l), c, sat), 0.0, 1.0); return vec4(c * t.a, t.a); }',
+  'void main(){',
+  '  vec4 c = tap(vec2(0.0)), n = tap(vec2(0.0, 1.0)), s = tap(vec2(0.0, -1.0)), e = tap(vec2(1.0, 0.0)), w = tap(vec2(-1.0, 0.0));',
+  '  vec4 mn = min(c, min(min(n, s), min(e, w))), mx = max(c, max(max(n, s), max(e, w)));',
+  '  vec4 amp = sqrt(clamp(min(mn, vec4(1.0) - mx) / max(mx, vec4(0.0001)), 0.0, 1.0));',
+  '  vec4 wt = -amp * mix(0.125, 0.2, sharp);',
+  '  vec4 o = (c + (n + s + e + w) * wt) / (vec4(1.0) + 4.0 * wt);',
+  '  o.a = clamp(o.a, 0.0, 1.0); o.rgb = clamp(o.rgb, vec3(0.0), vec3(o.a));',
+  '  gl_FragColor = o; }'].join('\n');
+K3.initPost = function (R) {
+  GFX.post = false;
+  if (GFX.off || !GFX.plan) return false;
+  try {
+    if (!R.capabilities.isWebGL2) return false;
+    var rt = new THREE.WebGLRenderTarget(4, 4, { samples: 4, depthBuffer: true, stencilBuffer: false, encoding: THREE.sRGBEncoding });
+    rt.texture.encoding = THREE.sRGBEncoding; rt.texture.minFilter = THREE.LinearFilter; rt.texture.magFilter = THREE.LinearFilter; rt.texture.generateMipmaps = false;
+    var mat = new THREE.ShaderMaterial({ vertexShader: POST_VS, fragmentShader: POST_FS, depthTest: false, depthWrite: false, toneMapped: false,
+      uniforms: { tDiffuse: { value: rt.texture }, px: { value: new THREE.Vector2(0.25, 0.25) }, sharp: { value: GFX.sharp }, sat: { value: GFX.sat } } });
+    var q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); q.frustumCulled = false;
+    var ps = new THREE.Scene(); ps.add(q);
+    K3.post = { rt: rt, mat: mat, scene: ps, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), v: new THREE.Vector2() };
+    GFX.post = true; return true;
+  } catch (e) { K3.post = null; GFX.post = false; return false; }
+};
+/* draw a scene to K3.canvas: through the HDR target + sharpen pass when available, else directly (renderer tone mapping) */
+K3.present = function (scene, cam) {
+  var R = K3.renderer, P = K3.post;
+  if (P && GFX.post) {
+    try {
+      R.getDrawingBufferSize(P.v); var w = Math.max(1, P.v.x | 0), hh = Math.max(1, P.v.y | 0);
+      if (P.rt.width !== w || P.rt.height !== hh) P.rt.setSize(w, hh);
+      P.mat.uniforms.px.value.set(1 / w, 1 / hh); P.mat.uniforms.sharp.value = GFX.sharp * (GFX.rs < 0.9 ? 1.25 : 1);      // a little more sharpening when the governor lowers the resolution
+      R.setRenderTarget(P.rt); R.clear(); R.render(scene, cam); R.setRenderTarget(null);
+      R.render(P.scene, P.cam);
+      return;
+    } catch (e) { try { R.setRenderTarget(null); } catch (x) { } GFX.post = false; }
+  }
+  R.render(scene, cam);
+};
 K3.load = function () {
   if (K3.promise) return K3.promise;
   K3.status = 'loading';
@@ -2710,9 +2874,11 @@ K3.load = function () {
       if (!window.THREE || !THREE.GLTFLoader) return fail('Three.js or GLTFLoader did not load (network or CDN blocked)');
       if (typeof KHALID_GLB_B64 !== 'string' || !KHALID_GLB_B64.length || typeof KHALID_RIG === 'undefined') return fail('Khalid model data is missing from this build');
       var canvas = document.createElement('canvas'), renderer;
-      try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: 'high-performance' }); }
+      GFX.plan = GFX.probe();
+      try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !GFX.plan, alpha: true, powerPreference: 'high-performance' }); }
       catch (e) { return fail('WebGL is not available on this device', e); }
       renderer.setClearColor(0x000000, 0); renderer.outputEncoding = THREE.sRGBEncoding; renderer.setPixelRatio(1);
+      K3.renderer = renderer; if (!GFX.off) { renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = GFX.expo; } K3.initPost(renderer);
       canvas.addEventListener('webglcontextlost', function (ev) { ev.preventDefault(); K3.status = 'error'; K3.error = 'The graphics context was lost'; });
       var scene = new THREE.Scene();
       var hemi = new THREE.HemisphereLight(0xffffff, 0x3a3f66, 0.95); scene.add(hemi);
@@ -2726,7 +2892,7 @@ K3.load = function () {
       new THREE.GLTFLoader().parse(buf.buffer, '', function (gltf) {
         try {
           var mesh = null;
-          gltf.scene.traverse(function (o) { if (o.isSkinnedMesh && !mesh) mesh = o; if (o.isMesh && o.material) { o.frustumCulled = false; var m = o.material; ['map', 'normalMap', 'metalnessMap', 'roughnessMap'].forEach(function (k) { if (m[k]) m[k].anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy()); }); m.side = THREE.DoubleSide; } });
+          gltf.scene.traverse(function (o) { if (o.isSkinnedMesh && !mesh) mesh = o; if (o.isMesh && o.material) { o.frustumCulled = false; var m = o.material; ['map', 'normalMap', 'metalnessMap', 'roughnessMap'].forEach(function (k) { if (m[k]) m[k].anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); }); m.side = THREE.DoubleSide; } });
           if (!mesh) return fail('The model has no skinned mesh');
           var bones = mesh.skeleton.bones;
           if (bones.length !== KHALID_RIG.bones.length || !/Hips/.test(bones[0].name)) return fail('Skeleton mismatch: ' + bones.length + ' bones, first is ' + bones[0].name);
@@ -2734,6 +2900,7 @@ K3.load = function () {
           K3.rig = KRig.create(KHALID_RIG); K3.bones = bones; K3.renderer = renderer; K3.scene = scene; K3.camera = cam; K3.canvas = canvas;
           K3.setView(K3.view);
           K3.status = 'ready'; resolve();
+          setTimeout(function () { try { if (renderer.capabilities.isWebGL2 && !GFX.off) { K3.envFor('gym'); K3.envFor('default'); } } catch (e) { } }, 300);      // build the arena lighting before the first fight frame needs it
           K3.makeOpponent(gltf, buf, scene, renderer);
           K3.makeEmerald(scene, renderer);
         } catch (e) { fail('Could not set up the model', e); }
@@ -2785,7 +2952,7 @@ K3.makeExtra = function (id, scene, renderer) {
     var bin = atob(src.b64), buf = new Uint8Array(bin.length), i; for (i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
     new THREE.GLTFLoader().parse(buf.buffer, '', function (g) {
       try {
-        var mesh = null; g.scene.traverse(function (o) { if (o.isSkinnedMesh && !mesh) mesh = o; if (o.isMesh) { o.frustumCulled = false; if (o.material) { o.material.side = THREE.DoubleSide; ['map', 'normalMap', 'metalnessMap', 'roughnessMap'].forEach(function (k) { if (o.material[k]) o.material[k].anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy()); }); } } });
+        var mesh = null; g.scene.traverse(function (o) { if (o.isSkinnedMesh && !mesh) mesh = o; if (o.isMesh) { o.frustumCulled = false; if (o.material) { o.material.side = THREE.DoubleSide; ['map', 'normalMap', 'metalnessMap', 'roughnessMap'].forEach(function (k) { if (o.material[k]) o.material[k].anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); }); } } });
         if (!mesh || mesh.skeleton.bones.length !== M.n) throw new Error(id + ' skeleton mismatch');
         g.scene.visible = false; scene.add(g.scene);
         st.root = g.scene; st.bones = mesh.skeleton.bones; st.W = [];
@@ -2841,6 +3008,7 @@ K3.loadBoss = function (buf) {
           Object.keys(DOON_MAP.curl || {}).forEach(function (j) { var q = DOON_MAP.curl[j], b = st.bones[+j]; if (b) b.quaternion.set(q[0], q[1], q[2], q[3]); });     // closed fists
           g.scene.scale.set(1.06, 1.06, 1.06); g.scene.visible = false;
           if (K3.opp && K3.opp.group) K3.opp.group.add(g.scene); else K3.scene.add(g.scene);
+          try { K3.polish(g.scene); if (K3.renderer.capabilities.isWebGL2 && !GFX.off) K3.envFor('night'); } catch (e) { }
           K3.boss = st; ok(st);
         } catch (e) { bad(e); }
       }, function () { bad(new Error('could not read doon.glb')); });
@@ -2936,7 +3104,7 @@ LegStance.prototype.update = function (pelvisX, ankleX, ankleY, dt) {
 /* arm direction smoothing that adapts to speed: very calm when the arm is still (no jitter), almost instant during a punch */
 function smoothDir(cur, tg, dt) {
   if (!cur) return tg.slice();
-  var d = Math.hypot(tg[0] - cur[0], tg[1] - cur[1], tg[2] - cur[2]), sp = d / Math.max(dt, 1e-3), k = 1 - Math.exp(-dt * (9 + Math.min(48, sp * 9)));
+  var d = Math.hypot(tg[0] - cur[0], tg[1] - cur[1], tg[2] - cur[2]), sp = d / Math.max(dt, 1e-3), SD = CFG.sd, k = 1 - Math.exp(-dt * (SD.base + Math.min(SD.max, Math.max(0, sp - SD.dead) * SD.gain)));
   var v = [cur[0] + (tg[0] - cur[0]) * k, cur[1] + (tg[1] - cur[1]) * k, cur[2] + (tg[2] - cur[2]) * k], m = Math.hypot(v[0], v[1], v[2]) || 1;
   return [v[0] / m, v[1] / m, v[2] / m];
 }
@@ -3035,7 +3203,7 @@ K3.draw = function (ctx, G, time, noRoom) {
     var tf = G && G.dbg && G.dbg.fps;                                            // the pose tracker shares the phone with this renderer: if it is starved, render the 3D scene at a lower resolution
     if (tf > 0) { if (tf < 14) K3.slowN = (K3.slowN || 0) + 1; else if (tf > 24) K3.slowN = Math.min(0, (K3.slowN || 0)) - 1; else K3.slowN = 0;
       if (K3.slowN > 90) { K3.rq = Math.max(0.55, (K3.rq || 1) - 0.15); K3.slowN = 0; } else if (K3.slowN < -600) { K3.rq = Math.min(1, (K3.rq || 1) + 0.15); K3.slowN = 0; } }
-    var rq = K3.rq || 1;                                                         // render scale: drops automatically if the pose tracker is starved (see Match)
+    GFX.tick(performance.now()); var rq = Math.min(K3.rq || 1, GFX.rs);                                                         // render scale: drops automatically if the pose tracker is starved (see Match)
     if (K3.dpr !== dpr * rq || K3.fw !== W) { K3.dpr = dpr * rq; K3.fw = W; K3.renderer.setSize(Math.round(W * dpr * rq), Math.round(H * dpr * rq), false); K3.camera.aspect = W / H; }
     if (land) K3.camera.setViewOffset(W, H, kx, ky, W / kz, H / kz); else if (K3.camera.view && K3.camera.view.enabled) K3.camera.clearViewOffset();      // landscape: render only the zoomed window, at full pixel density
     K3.camera.updateProjectionMatrix();
@@ -3057,7 +3225,7 @@ K3.draw = function (ctx, G, time, noRoom) {
       }
     }
     if (!noRoom && ARENA.gymOK !== false) { var gy = false; try { gy = drawGym(ctx, kx - STX, ky - STY, W / kz, H / kz); } catch (e) { ARENA.gymOK = false; } if (gy && K3.room) K3.room.visible = false; K3.look(gy ? (ARENA.env === 'street' ? 'night' : 'gym') : 'default'); } else K3.look('default');
-    K3.renderer.render(K3.scene, K3.camera);
+    K3.present(K3.scene, K3.camera);
     ctx.drawImage(K3.canvas, kx - STX, ky - STY, W / kz, H / kz);
     if (K3.bossOn && K3.boss && K3.boss.ready && K3.opp && K3.opp.group.visible && G) { try { drawBossAura(ctx, G, time, kx - STX, ky - STY, W / kz, H / kz); } catch (e) { } }           // drawScene is inside translate(STX, STY): undo it so the model fills the whole frame (or the zoomed window of it)
     return true;
@@ -3092,7 +3260,6 @@ function useK3() {
 /* ======================================================================
    GAME STATE + RULES
    ====================================================================== */
-function mbDpr() { var st = false; try { st = document.documentElement.classList.contains('stage'); } catch (e) { } return Math.min(window.devicePixelRatio || 1, isLandscape() ? 1.5 : (st ? 2 : 1.5)); }          // TV / sideways: render sharper
 var W = 480, H = 853;                       // portrait frame 9:16; in landscape W grows to the screen's shape (H stays 853 so every vertical position keeps its meaning)
 var SS = 1, STX = 0, STY = 130;
 var LANDZ = 1.45, LANDY0 = 148, HUDS = 1;      // landscape: the world (street + fighters) is zoomed 1.35x inside the canvas, window top at y=125; the HUD is drawn afterwards, unzoomed, scaled by HUDS
@@ -4640,7 +4807,7 @@ K3.drawHero = function (ctx, w, hh, time) { K3.look('default');
     }
     var hy = K3.heroHead + (K3.emActive() ? 0.03 : 0);                 // Emerald stands a little taller
     cam.fov = 30; cam.position.set(0.15, hy - 0.12, 3.0); cam.lookAt(0, hy - 0.34, 0); cam.updateProjectionMatrix();
-    R.render(K3.scene, cam);
+    K3.present(K3.scene, cam);
     ctx.drawImage(K3.canvas, 0, 0, w, hh);
     return true;
   } catch (e) { return false; }
@@ -4669,7 +4836,7 @@ K3.drawLive = function (ctx, w, hh, time, G) { K3.look('default');            //
     var LF = K3.liveFrame;                                                                                                        // screens can ask for a closer or wider shot
     if (LF) { cam.fov = LF.fov; cam.position.set(0.04, hy + LF.dy, LF.z); cam.lookAt(0, hy + LF.ly, 0); } else { cam.fov = 32; cam.position.set(0.05, hy - 0.05, 3.7); cam.lookAt(0, hy - 0.55, 0); }
     cam.updateProjectionMatrix();             // waist-up, with room above the head for raised hands
-    R.render(K3.scene, cam);
+    K3.present(K3.scene, cam);
     ctx.drawImage(K3.canvas, 0, 0, w, hh);
     return true;
   } catch (e) { return false; }
@@ -5636,7 +5803,7 @@ function DevPanel(props) {
 
 function MStatus(props) {
   var snap = useSnap(props.tracker, 150);
-  return h('div', { className: 'mst' }, h(StatusChip, { status: snap.status }), h(VisPips, { snap: snap }), snap.fps ? h('span', { className: 'fpsx' }, snap.fps + ' fps') : null, h('span', { className: 'fpsx' }, APP_BUILD));
+  return h('div', { className: 'mst' }, h(StatusChip, { status: snap.status }), h(VisPips, { snap: snap }), snap.fps ? h('span', { className: 'fpsx' }, snap.fps + ' fps' + (snap.trk ? ' · ' + snap.trk : '')) : null, h('span', { className: 'fpsx' }, APP_BUILD));
 }
 
 /* Victory dance: after a win the fighter is shown from the front, like a mirror, and copies the player's moves for 7 seconds on an empty stage. */
@@ -6132,7 +6299,7 @@ function App() {
   return h(React.Fragment, null, !full ? h(NeonBg, { cls: 'bgm' }) : null, full && stage && typeof ARENA_BG_B64 !== 'undefined' ? h('div', { className: 'stagebg', style: { backgroundImage: bgUrl } }) : null, full && stage ? h('div', { className: 'stagevig' }) : null, content, howOpen ? h(HowTo, { onClose: function () { setHowOpen(false); } }) : null, cursorOn ? h(HandCursor, { tracker: tracker, lowOnly: screen === 'match' && !matchPaused }) : null, vw < vh ? h(RotateScreen, null) : null);
 }
 
-window.__MB = { setW: function (w) { setFrameW(w); }, arcProject: arcProject, arcLaneGeom: arcLaneGeom, arcLaneHit: arcLaneHit, warnSprite: warnSprite, roomPaint: roomPaint, ROOM: ROOM, OWNED: OWNED, PREMIUM: PREMIUM, charFree: charFree, UI: { RotateScreen: RotateScreen, StoryMode: StoryMode, BodyChoice: BodyChoice, CalLand: CalLand, BzChar: BzChar, BzMenu: BzMenu, BzSettings: BzSettings, CharSelect: CharSelect, ArcOver: ArcOver, App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
+window.__MB = { setW: function (w) { setFrameW(w); }, CFG: CFG, GFX: GFX, mbDpr: mbDpr, isTouchDevice: isTouchDevice, arcProject: arcProject, arcLaneGeom: arcLaneGeom, arcLaneHit: arcLaneHit, warnSprite: warnSprite, roomPaint: roomPaint, ROOM: ROOM, OWNED: OWNED, PREMIUM: PREMIUM, charFree: charFree, UI: { RotateScreen: RotateScreen, StoryMode: StoryMode, BodyChoice: BodyChoice, CalLand: CalLand, BzChar: BzChar, BzMenu: BzMenu, BzSettings: BzSettings, CharSelect: CharSelect, ArcOver: ArcOver, App: App, MainMenu: MainMenu, PrivateRoom: PrivateRoom, Lobby: Lobby, SettingsScreen: SettingsScreen, HowTo: HowTo, NetStatus: NetStatus, Permission: Permission, Calibration: Calibration, Tutorial: Tutorial, Match: Match, SyncTest: SyncTest, MpMatch: MpMatch, MpResult: MpResult, mpHit: mpHit, Result: Result, DevPanel: DevPanel, MStatus: MStatus, VisPips: VisPips, HandCursor: HandCursor, HandHint: HandHint, MirrorCanvas: MirrorCanvas, HeroCanvas: HeroCanvas, FgChar: FgChar, PunchTest: PunchTest, FightCal: FightCal, Celebrate: Celebrate, FCAL: FCAL, OnlineMenu: OnlineMenu, FgHero: FgHero, FgFrame: FgFrame, SrvPill: SrvPill }, makeBackground: makeBackground, FCAL: FCAL, frameSize: frameSize, reframe: reframe, getW: function () { return W; }, getSTX: function () { return STX; }, KRig: KRig, K3: K3, drawScene: drawScene, CHAR: CHAR, CHARS: CHARS, setChar: setChar, EMERALD_MAP: typeof EMERALD_MAP === 'undefined' ? null : EMERALD_MAP, SETTINGS: SETTINGS, AnimMixer: AnimMixer, GestureEngine: GestureEngine, Tracker: Tracker, createGame: createGame, stepGame: stepGame, k3OptsRemote: k3OptsRemote, Pose: Pose, inviteCode: inviteCode, inviteUrl: inviteUrl, CFG: CFG, SilentFx: SilentFx, ATK: ATK, summarize: summarize, arcWarnT: arcWarnT, ARC: ARC, circleHits: circleHits, playerBox: playerBox, mpHit: mpHit, K3: K3 };
 var rootEl = document.getElementById('root');
 if (rootEl && ReactDOM.createRoot) ReactDOM.createRoot(rootEl).render(h(App));
 })();
